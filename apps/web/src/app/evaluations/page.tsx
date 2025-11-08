@@ -48,33 +48,33 @@ export default function EvaluationsPage() {
     { 
       key: 'final_score', 
       label: '최종 점수',
-      render: (eval: Evaluation) => 
-        eval.final_score ? `${eval.final_score.toFixed(2)}점` : '-'
+      render: (evaluation: Evaluation) => 
+        evaluation.final_score ? `${evaluation.final_score.toFixed(2)}점` : '-'
     },
     { 
       key: 'status', 
       label: '상태',
-      render: (eval: Evaluation) => {
+      render: (evaluation: Evaluation) => {
         const statusMap: Record<string, { label: string; color: string }> = {
           pending: { label: '대기', color: 'var(--fnguide-gray-500)' },
           processing: { label: '처리중', color: 'var(--fnguide-secondary)' },
           completed: { label: '완료', color: 'var(--fnguide-primary)' },
           failed: { label: '실패', color: '#dc2626' },
         }
-        const status = statusMap[eval.status] || { label: eval.status, color: 'var(--fnguide-gray-500)' }
+        const status = statusMap[evaluation.status] || { label: evaluation.status, color: 'var(--fnguide-gray-500)' }
         return <span style={{ color: status.color, fontWeight: 500 }}>{status.label}</span>
       }
     },
     { 
       key: 'created_at', 
       label: '생성일',
-      render: (eval: Evaluation) => new Date(eval.created_at).toLocaleDateString('ko-KR')
+      render: (evaluation: Evaluation) => new Date(evaluation.created_at).toLocaleDateString('ko-KR')
     },
     { 
       key: 'actions', 
       label: '작업',
-      render: (eval: Evaluation) => (
-        <Link href={`/evaluations/${eval.id}`}>
+      render: (evaluation: Evaluation) => (
+        <Link href={`/evaluations/${evaluation.id}`}>
           <Button variant="secondary" size="sm">상세</Button>
         </Link>
       )
