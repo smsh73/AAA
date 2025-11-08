@@ -1,0 +1,315 @@
+# 배포 가이드
+
+## 배포 방법
+
+### 방법 1: Docker Compose 사용 (권장)
+
+#### 1. 환경 변수 설정
+
+`.env` 파일을 프로젝트 루트에 생성:
+
+```env
+# Database
+DATABASE_URL=postgresql://user:password@postgres:5432/analyst_awards
+
+# Redis
+REDIS_URL=redis://redis:6379/0
+
+# AI API Keys
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+GOOGLE_API_KEY=your_google_key
+PERPLEXITY_API_KEY=your_perplexity_key
+
+# Storage
+STORAGE_PATH=/app/storage
+
+# CORS
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+```
+
+#### 2. Docker Compose로 서비스 시작
+
+```bash
+# 프로젝트 루트에서
+docker-compose up -d
+```
+
+이 명령은 다음을 실행합니다:
+- PostgreSQL 데이터베이스 시작
+- Redis 시작
+- API 서버 시작
+
+#### 3. 데이터베이스 마이그레이션 실행
+
+```bash
+# API 컨테이너에서 마이그레이션 실행
+docker-compose exec api alembic upgrade head
+```
+
+또는 컨테이너 외부에서:
+
+```bash
+# 환경 변수 설정
+export DATABASE_URL="postgresql://user:password@localhost:5432/analyst_awards"
+
+# 마이그레이션 실행
+cd apps/api
+alembic upgrade head
+```
+
+#### 4. Celery 워커 시작
+
+```bash
+# API 컨테이너에서 Celery 워커 실행
+docker-compose exec api celery -A app.celery_app worker --loglevel=info
+```
+
+또는 별도 컨테이너로 실행하려면 `docker-compose.yml`에 worker 서비스 추가 필요
+
+#### 5. 서비스 확인
+
+```bash
+# 서비스 상태 확인
+docker-compose ps
+
+# 로그 확인
+docker-compose logs -f api
+
+# Health check
+curl http://localhost:8000/api/health
+```
+
+### 방법 2: 로컬 환경에서 직접 실행
+
+#### 1. 사전 요구사항 설치
+
+**macOS:**
+```bash
+# PostgreSQL 설치
+brew install postgresql@14
+brew services start postgresql@14
+
+# Redis 설치
+brew install redis
+brew services start redis
+
+# poppler 설치 (PDF 처리용)
+brew install poppler
+```
+
+**Ubuntu/Debian:**
+```bash
+# PostgreSQL 설치
+sudo apt-get update
+sudo apt-get install postgresql-14 postgresql-contrib
+
+# Redis 설치
+sudo apt-get install redis-server
+
+# poppler 설치
+sudo apt-get install poppler-utils
+```
+
+#### 2. 데이터베이스 생성
+
+```bash
+# PostgreSQL 접속
+psql -U postgres
+
+# 데이터베이스 및 사용자 생성
+CREATE DATABASE analyst_awards;
+CREATE USER user WITH PASSWORD 'password';
+GRANT ALL PRIVILEGES ON DATABASE analyst_awards TO user;
+\q
+```
+
+#### 3. 백엔드 설정
+
+```bash
+cd apps/api
+
+# Python 가상환경 생성
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 의존성 설치
+pip install -r requirements.txt
+
+# 환경 변수 설정
+export DATABASE_URL="postgresql://user:password@localhost:5432/analyst_awards"
+export REDIS_URL="redis://localhost:6379/0"
+export OPENAI_API_KEY="your_key"
+export ANTHROPIC_API_KEY="your_key"
+export GOOGLE_API_KEY="your_key"
+export PERPLEXITY_API_KEY="your_key"
+export STORAGE_PATH="./storage"
+
+# 데이터베이스 마이그레이션
+alembic upgrade head
+
+# 서버 실행
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### 4. Celery 워커 실행 (별도 터미널)
+
+```bash
+cd apps/api
+source venv/bin/activate  # 가상환경 활성화
+
+# 환경 변수 설정 (동일)
+export DATABASE_URL="postgresql://user:password@localhost:5432/analyst_awards"
+export REDIS_URL="redis://localhost:6379/0"
+
+# Celery 워커 실행
+celery -A app.celery_app worker --loglevel=info
+```
+
+#### 5. 프론트엔드 실행 (별도 터미널)
+
+```bash
+cd apps/web
+
+# 의존성 설치
+pnpm install
+
+# 개발 서버 실행
+pnpm dev
+```
+
+## 배포 후 확인 사항
+
+### 1. API 서버 확인
+
+```bash
+# Health check
+curl http://localhost:8000/api/health
+
+# API 문서 확인
+open http://localhost:8000/docs
+```
+
+### 2. 데이터베이스 확인
+
+```bash
+# PostgreSQL 접속
+psql -U user -d analyst_awards
+
+# 테이블 목록 확인
+\dt
+
+# 특정 테이블 구조 확인
+\d collection_jobs
+\d data_collection_logs
+\d reports
+```
+
+### 3. Celery 워커 확인
+
+```bash
+# Celery 상태 확인
+celery -A app.celery_app inspect active
+
+# 또는 Redis에서 확인
+redis-cli
+> KEYS celery*
+```
+
+## 프로덕션 배포
+
+### 1. 환경 변수 보안
+
+- `.env` 파일을 `.gitignore`에 추가 (이미 추가됨)
+- 프로덕션 환경에서는 환경 변수를 안전하게 관리
+- Docker secrets 또는 Kubernetes secrets 사용
+
+### 2. 데이터베이스 백업
+
+```bash
+# 백업
+pg_dump -U user analyst_awards > backup_$(date +%Y%m%d).sql
+
+# 복원
+psql -U user analyst_awards < backup_20250115.sql
+```
+
+### 3. 로그 관리
+
+```bash
+# Docker Compose 로그 확인
+docker-compose logs -f api
+
+# 로그 파일로 저장
+docker-compose logs api > api.log 2>&1
+```
+
+### 4. 성능 모니터링
+
+- API 응답 시간 모니터링
+- 데이터베이스 쿼리 성능 확인
+- Celery 작업 큐 상태 확인
+- Redis 메모리 사용량 확인
+
+## 문제 해결
+
+### 데이터베이스 연결 오류
+
+```bash
+# PostgreSQL 서비스 확인
+brew services list | grep postgresql  # macOS
+sudo systemctl status postgresql    # Linux
+
+# 연결 테스트
+psql -U user -d analyst_awards -h localhost
+```
+
+### Redis 연결 오류
+
+```bash
+# Redis 서비스 확인
+brew services list | grep redis  # macOS
+sudo systemctl status redis     # Linux
+
+# 연결 테스트
+redis-cli ping
+```
+
+### 마이그레이션 오류
+
+```bash
+# 현재 마이그레이션 상태 확인
+alembic current
+
+# 마이그레이션 히스토리 확인
+alembic history
+
+# 특정 버전으로 롤백
+alembic downgrade -1
+
+# 다시 업그레이드
+alembic upgrade head
+```
+
+### 포트 충돌
+
+```bash
+# 포트 사용 확인
+lsof -i :8000  # API 서버
+lsof -i :5432  # PostgreSQL
+lsof -i :6379  # Redis
+
+# 포트 변경 (docker-compose.yml 수정)
+ports:
+  - "8001:8000"  # 8001로 변경
+```
+
+## 다음 단계
+
+1. ✅ 환경 변수 설정
+2. ✅ 데이터베이스 마이그레이션 실행
+3. ✅ API 서버 시작
+4. ✅ Celery 워커 시작
+5. ⏳ 테스트 데이터 입력
+6. ⏳ 시스템 통합 테스트
+

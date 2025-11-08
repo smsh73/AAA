@@ -122,7 +122,7 @@ class DocumentExtractionService:
 
     async def _extract_page_content(
         self,
-        page: pdfplumber.Page,
+        page: Any,
         page_num: int,
         report_id: str,
         file_path: str
@@ -151,7 +151,7 @@ class DocumentExtractionService:
 
     async def _extract_text_blocks(
         self,
-        page: pdfplumber.Page,
+        page: Any,
         page_num: int
     ) -> List[Dict[str, Any]]:
         """텍스트 블록 추출"""
@@ -267,7 +267,7 @@ class DocumentExtractionService:
 
     async def _extract_tables(
         self,
-        page: pdfplumber.Page,
+        page: Any,
         page_num: int
     ) -> List[Dict[str, Any]]:
         """표 추출"""
@@ -339,7 +339,7 @@ class DocumentExtractionService:
 
     async def _extract_images(
         self,
-        page: pdfplumber.Page,
+        page: Any,
         page_num: int,
         report_id: str,
         file_path: str
