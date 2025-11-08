@@ -17,7 +17,7 @@ class Company(BaseModel):
     sector = Column(String(100))
     market_cap = Column(Numeric(20, 2))  # 시가총액
     fundamentals = Column(JSONB)  # 재무 정보
-    metadata = Column(JSONB)  # 추가 메타데이터
+    extra_data = Column(JSONB)  # 추가 메타데이터
 
     # Relationships
     reports = relationship("Report", back_populates="company")

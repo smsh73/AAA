@@ -7,8 +7,7 @@ from .market import Market
 from .report import Report, ReportSection
 from .prediction import Prediction
 from .actual_result import ActualResult
-from .evaluation import Evaluation
-from .evaluation_score import EvaluationScore
+from .evaluation import Evaluation, EvaluationScore
 from .scorecard import Scorecard
 from .award import Award
 from .data_source import DataSource

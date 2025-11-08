@@ -18,5 +18,5 @@ class DataSource(BaseModel):
     update_frequency = Column(String(50))  # daily, weekly, monthly
     last_updated = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True, nullable=False, index=True)
-    metadata = Column(JSONB)
+    extra_data = Column(JSONB)
 

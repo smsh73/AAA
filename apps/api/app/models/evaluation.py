@@ -24,7 +24,7 @@ class Evaluation(BaseModel):
     sns_market_score = Column(Numeric(10, 2))  # SNS·시장 반응 점수
     expert_survey_score = Column(Numeric(10, 2))  # 전문가 평가 및 설문 점수
     
-    metadata = Column(JSONB)
+    extra_data = Column(JSONB)
 
     # Relationships
     analyst = relationship("Analyst", back_populates="evaluations")

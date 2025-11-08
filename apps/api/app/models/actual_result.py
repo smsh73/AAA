@@ -20,7 +20,7 @@ class ActualResult(BaseModel):
     announcement_date = Column(Date)
     source = Column(String(255))  # 출처
     source_url = Column(Text)
-    metadata = Column(JSONB)
+    extra_data = Column(JSONB)
 
     # Relationships
     prediction = relationship("Prediction", back_populates="actual_results")

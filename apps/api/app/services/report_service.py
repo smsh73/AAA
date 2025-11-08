@@ -2,7 +2,7 @@
 Report service
 """
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta
 import os

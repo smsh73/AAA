@@ -21,7 +21,7 @@ class Prediction(BaseModel):
     period = Column(String(20))  # 2025Q1, 2025-06 등
     reasoning = Column(Text)  # 예측 근거
     confidence = Column(String(10))  # high, medium, low
-    metadata = Column(JSONB)
+    extra_data = Column(JSONB)
 
     # Relationships
     report = relationship("Report", back_populates="predictions")
