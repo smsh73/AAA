@@ -4,7 +4,7 @@ Evaluation report service
 from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional, Dict, Any
 
 from app.models.evaluation_report import EvaluationReport
 from app.schemas.evaluation_report import (

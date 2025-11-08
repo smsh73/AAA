@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Dict, Any, List, Optional
 
 from app.models.evaluation import Evaluation, EvaluationScore
 from app.models.report import Report

@@ -4,13 +4,14 @@ Evaluation tasks
 from app.celery_app import celery_app
 from app.database import SessionLocal
 from app.services.ai_agents.evaluation_agent import EvaluationAgent
-from app.services.evaluation_service import EvaluationService
 from uuid import UUID
 
 
 @celery_app.task(name="evaluate_report")
 def evaluate_report_task(evaluation_id: str, report_id: str):
     """리포트 평가 작업"""
+    from app.services.evaluation_service import EvaluationService
+    
     db = SessionLocal()
     try:
         agent = EvaluationAgent(db)

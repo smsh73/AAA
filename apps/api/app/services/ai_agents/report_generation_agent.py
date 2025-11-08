@@ -7,8 +7,7 @@ from typing import List, Dict, Any
 from datetime import datetime
 
 from app.models.evaluation_report import EvaluationReport
-from app.models.evaluation import Evaluation
-from app.models.evaluation_score import EvaluationScore
+from app.models.evaluation import Evaluation, EvaluationScore
 from app.services.llm_service import LLMService
 from app.services.perplexity_service import PerplexityService
 
