@@ -19,3 +19,15 @@ class ScorecardResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class ScorecardDetailResponse(ScorecardResponse):
+    scorecard_data: dict
+    created_at: datetime
+    updated_at: datetime
+
+
+class ScorecardRankingResponse(BaseModel):
+    rankings: List[ScorecardResponse]
+    period: str
+    total: int
+

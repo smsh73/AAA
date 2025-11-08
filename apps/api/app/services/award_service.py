@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from app.models.award import Award
 from app.schemas.award import AwardResponse
+from app.services.ai_agents.award_agent import AwardAgent
 
 
 class AwardService:
@@ -13,6 +14,7 @@ class AwardService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.award_agent = AwardAgent(db)
 
     def get_awards(
         self,
@@ -34,4 +36,13 @@ class AwardService:
             query = query.filter(Award.award_category == category)
 
         return query.order_by(Award.rank).all()
+
+    async def select_awards(
+        self,
+        year: int,
+        quarter: Optional[int] = None,
+        categories: Optional[List[str]] = None
+    ) -> dict:
+        """어워드 선정"""
+        return await self.award_agent.select_awards(year, quarter, categories)
 

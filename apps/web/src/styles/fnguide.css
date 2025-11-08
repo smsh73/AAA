@@ -1,0 +1,303 @@
+/* FnGuide.com 스타일 시스템 */
+
+:root {
+  /* FnGuide 색상 팔레트 */
+  --fnguide-primary: #0066CC;
+  --fnguide-primary-dark: #0052A3;
+  --fnguide-primary-light: #E6F2FF;
+  --fnguide-secondary: #FF6600;
+  --fnguide-gray-100: #F5F5F5;
+  --fnguide-gray-200: #E0E0E0;
+  --fnguide-gray-300: #CCCCCC;
+  --fnguide-gray-400: #999999;
+  --fnguide-gray-500: #666666;
+  --fnguide-gray-600: #333333;
+  --fnguide-white: #FFFFFF;
+  --fnguide-black: #000000;
+  
+  /* 간격 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  
+  /* 그림자 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  
+  /* 테두리 */
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+}
+
+/* 기본 스타일 */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  color: var(--fnguide-gray-600);
+  background-color: var(--fnguide-gray-100);
+}
+
+/* FnGuide 버튼 스타일 */
+.fnguide-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--border-radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+
+.fnguide-btn-primary {
+  background-color: var(--fnguide-primary);
+  color: var(--fnguide-white);
+}
+
+.fnguide-btn-primary:hover {
+  background-color: var(--fnguide-primary-dark);
+  box-shadow: var(--shadow-md);
+}
+
+.fnguide-btn-secondary {
+  background-color: var(--fnguide-white);
+  color: var(--fnguide-primary);
+  border: 1px solid var(--fnguide-primary);
+}
+
+.fnguide-btn-secondary:hover {
+  background-color: var(--fnguide-primary-light);
+}
+
+/* FnGuide 카드 스타일 */
+.fnguide-card {
+  background: var(--fnguide-white);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-lg);
+  transition: box-shadow 0.2s;
+}
+
+.fnguide-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.fnguide-card-header {
+  border-bottom: 1px solid var(--fnguide-gray-200);
+  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.fnguide-card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fnguide-gray-600);
+  margin: 0;
+}
+
+/* FnGuide 테이블 스타일 */
+.fnguide-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--fnguide-white);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.fnguide-table thead {
+  background-color: var(--fnguide-primary);
+  color: var(--fnguide-white);
+}
+
+.fnguide-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.fnguide-table tbody tr {
+  border-bottom: 1px solid var(--fnguide-gray-200);
+  transition: background-color 0.2s;
+}
+
+.fnguide-table tbody tr:hover {
+  background-color: var(--fnguide-gray-100);
+}
+
+.fnguide-table tbody tr:nth-child(even) {
+  background-color: var(--fnguide-gray-100);
+}
+
+.fnguide-table tbody tr:nth-child(even):hover {
+  background-color: var(--fnguide-gray-200);
+}
+
+.fnguide-table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--fnguide-gray-600);
+}
+
+/* FnGuide 네비게이션 바 */
+.fnguide-navbar {
+  background-color: var(--fnguide-white);
+  border-bottom: 2px solid var(--fnguide-primary);
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.fnguide-navbar-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.fnguide-navbar-brand {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--fnguide-primary);
+  text-decoration: none;
+}
+
+.fnguide-navbar-menu {
+  display: flex;
+  gap: var(--spacing-lg);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fnguide-navbar-item {
+  position: relative;
+}
+
+.fnguide-navbar-link {
+  color: var(--fnguide-gray-600);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: var(--border-radius-sm);
+  transition: all 0.2s;
+}
+
+.fnguide-navbar-link:hover {
+  color: var(--fnguide-primary);
+  background-color: var(--fnguide-primary-light);
+}
+
+.fnguide-navbar-link.active {
+  color: var(--fnguide-primary);
+  background-color: var(--fnguide-primary-light);
+}
+
+/* FnGuide 컨테이너 */
+.fnguide-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--spacing-lg);
+}
+
+/* FnGuide 페이지 헤더 */
+.fnguide-page-header {
+  margin-bottom: var(--spacing-xl);
+}
+
+.fnguide-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--fnguide-gray-600);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.fnguide-page-subtitle {
+  font-size: 16px;
+  color: var(--fnguide-gray-400);
+  margin: 0;
+}
+
+/* FnGuide 폼 스타일 */
+.fnguide-form-group {
+  margin-bottom: var(--spacing-lg);
+}
+
+.fnguide-form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fnguide-gray-600);
+  margin-bottom: var(--spacing-sm);
+}
+
+.fnguide-form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--fnguide-gray-300);
+  border-radius: var(--border-radius-sm);
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.fnguide-form-input:focus {
+  outline: none;
+  border-color: var(--fnguide-primary);
+  box-shadow: 0 0 0 3px var(--fnguide-primary-light);
+}
+
+/* FnGuide 그리드 */
+.fnguide-grid {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.fnguide-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.fnguide-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.fnguide-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* 반응형 */
+@media (max-width: 1024px) {
+  .fnguide-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .fnguide-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .fnguide-grid-4,
+  .fnguide-grid-3,
+  .fnguide-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  .fnguide-navbar-menu {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+}
+

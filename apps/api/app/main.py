@@ -16,6 +16,7 @@ from app.routers import (
     data_collection,
     evaluation_reports,
     health,
+    dashboard,
 )
 
 app = FastAPI(
@@ -35,6 +36,7 @@ app.add_middleware(
 
 # 라우터 등록
 app.include_router(health.router, prefix="/api", tags=["Health"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(analysts.router, prefix="/api/analysts", tags=["Analysts"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(companies.router, prefix="/api/companies", tags=["Companies"])

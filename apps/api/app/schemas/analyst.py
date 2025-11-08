@@ -2,7 +2,7 @@
 Analyst schemas
 """
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 

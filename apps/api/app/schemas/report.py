@@ -39,3 +39,19 @@ class ReportResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class ReportListResponse(BaseModel):
+    reports: List[ReportResponse]
+    total: int
+    skip: int
+    limit: int
+
+
+class ReportDetailResponse(ReportResponse):
+    file_path: Optional[str] = None
+    file_size: Optional[int] = None
+    total_pages: Optional[int] = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+

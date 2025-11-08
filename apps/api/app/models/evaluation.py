@@ -18,6 +18,12 @@ class Evaluation(BaseModel):
     evaluation_period = Column(String(20), nullable=False, index=True)  # 2025-Q1
     evaluation_date = Column(Date, nullable=False)
     status = Column(String(20), default="pending", index=True)  # pending, processing, completed, failed
+    
+    final_score = Column(Numeric(10, 2))  # 최종 점수
+    ai_quantitative_score = Column(Numeric(10, 2))  # AI 정량 분석 점수
+    sns_market_score = Column(Numeric(10, 2))  # SNS·시장 반응 점수
+    expert_survey_score = Column(Numeric(10, 2))  # 전문가 평가 및 설문 점수
+    
     metadata = Column(JSONB)
 
     # Relationships

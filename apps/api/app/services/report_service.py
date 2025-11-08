@@ -12,6 +12,7 @@ from pathlib import Path
 from app.models.report import Report
 from app.schemas.report import ReportUploadResponse, ExtractionStatusResponse
 from app.services.document_extraction_service import DocumentExtractionService
+from app.tasks.report_tasks import parse_report_task
 from fastapi import UploadFile
 
 
@@ -55,7 +56,7 @@ class ReportService:
         self.db.commit()
 
         # 비동기 추출 시작 (Celery 작업으로 실행)
-        # await self.extraction_service.extract_async(report_id, str(file_path))
+        parse_report_task.delay(str(report_id), str(file_path))
 
         return ReportUploadResponse(
             report_id=report_id,
@@ -80,12 +81,68 @@ class ReportService:
             estimated_completion_time=None
         )
 
+    def get_reports(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        analyst_id: Optional[UUID] = None,
+        company_id: Optional[UUID] = None,
+        status: Optional[str] = None
+    ) -> List[Report]:
+        """리포트 목록 조회"""
+        query = self.db.query(Report)
+
+        if analyst_id:
+            query = query.filter(Report.analyst_id == analyst_id)
+        if company_id:
+            query = query.filter(Report.company_id == company_id)
+        if status:
+            query = query.filter(Report.status == status)
+
+        return query.order_by(Report.created_at.desc()).offset(skip).limit(limit).all()
+
+    def get_reports_count(
+        self,
+        analyst_id: Optional[UUID] = None,
+        company_id: Optional[UUID] = None,
+        status: Optional[str] = None
+    ) -> int:
+        """리포트 총 개수"""
+        query = self.db.query(Report)
+
+        if analyst_id:
+            query = query.filter(Report.analyst_id == analyst_id)
+        if company_id:
+            query = query.filter(Report.company_id == company_id)
+        if status:
+            query = query.filter(Report.status == status)
+
+        return query.count()
+
+    def get_report(self, report_id: UUID) -> Optional[Report]:
+        """리포트 상세 조회"""
+        return self.db.query(Report).filter(Report.id == report_id).first()
+
     def get_predictions(self, report_id: UUID):
         """예측 정보 조회"""
+        from app.models.prediction import Prediction
+        
         report = self.db.query(Report).filter(Report.id == report_id).first()
         if not report:
             return None
 
-        # 실제로는 Prediction 테이블에서 조회
-        return []
+        predictions = self.db.query(Prediction).filter(
+            Prediction.report_id == report_id
+        ).all()
+
+        return [
+            {
+                "id": str(p.id),
+                "prediction_type": p.prediction_type,
+                "predicted_value": float(p.predicted_value),
+                "unit": p.unit,
+                "period": p.period,
+            }
+            for p in predictions
+        ]
 

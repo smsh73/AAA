@@ -4,8 +4,7 @@
   "private": true,
   "description": "AI가 찾은 스타 애널리스트 어워즈 시스템",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "scripts": {
     "dev": "turbo run dev",

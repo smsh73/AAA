@@ -95,9 +95,10 @@ class AnalystService:
         # 자료수집 시작
         data_collection_started = False
         if created_analyst_ids:
-            collection_service = DataCollectionService(self.db)
+            from app.tasks.data_collection_tasks import start_collection_for_analyst_task
             for analyst_id in created_analyst_ids:
-                await collection_service.start_collection_for_analyst(analyst_id)
+                # Celery 작업으로 비동기 실행
+                start_collection_for_analyst_task.delay(str(analyst_id))
             data_collection_started = True
 
         return AnalystBulkImportResponse(
