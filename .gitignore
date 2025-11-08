@@ -50,3 +50,7 @@ ENV/
 # Local development files
 .local/
 
+# Assets and old files
+attached_assets/
+old_assets/
+
