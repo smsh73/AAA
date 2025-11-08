@@ -8,7 +8,7 @@ from uuid import UUID
 
 from app.database import get_db
 from app.models.analyst import Analyst
-from app.schemas.analyst import AnalystCreate, AnalystResponse, AnalystBulkImportResponse
+from app.schemas.analyst import AnalystCreate, AnalystUpdate, AnalystResponse, AnalystBulkImportResponse
 from app.services.analyst_service import AnalystService
 from app.services.excel_parser import ExcelParser
 
@@ -43,6 +43,30 @@ async def create_analyst(analyst: AnalystCreate, db: Session = Depends(get_db)):
     """애널리스트 생성"""
     service = AnalystService(db)
     return service.create_analyst(analyst)
+
+
+@router.put("/{analyst_id}", response_model=AnalystResponse)
+async def update_analyst(
+    analyst_id: UUID,
+    analyst: AnalystUpdate,
+    db: Session = Depends(get_db)
+):
+    """애널리스트 수정"""
+    service = AnalystService(db)
+    updated_analyst = service.update_analyst(analyst_id, analyst)
+    if not updated_analyst:
+        raise HTTPException(status_code=404, detail="Analyst not found")
+    return updated_analyst
+
+
+@router.delete("/{analyst_id}")
+async def delete_analyst(analyst_id: UUID, db: Session = Depends(get_db)):
+    """애널리스트 삭제"""
+    service = AnalystService(db)
+    success = service.delete_analyst(analyst_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Analyst not found")
+    return {"message": "Analyst deleted successfully"}
 
 
 @router.post("/bulk-import", response_model=AnalystBulkImportResponse)

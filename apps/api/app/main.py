@@ -12,9 +12,11 @@ from app.routers import (
     companies,
     evaluations,
     scorecards,
+    scores,
     awards,
     data_collection,
     evaluation_reports,
+    agents,
     health,
     dashboard,
 )
@@ -42,9 +44,11 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(companies.router, prefix="/api/companies", tags=["Companies"])
 app.include_router(evaluations.router, prefix="/api/evaluations", tags=["Evaluations"])
 app.include_router(scorecards.router, prefix="/api/scorecards", tags=["Scorecards"])
+app.include_router(scores.router, prefix="/api/scores", tags=["Scores"])
 app.include_router(awards.router, prefix="/api/awards", tags=["Awards"])
 app.include_router(data_collection.router, prefix="/api/data-collection", tags=["Data Collection"])
 app.include_router(evaluation_reports.router, prefix="/api/evaluation-reports", tags=["Evaluation Reports"])
+app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
 
 
 @app.exception_handler(Exception)

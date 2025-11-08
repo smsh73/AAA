@@ -110,3 +110,135 @@ class ScorecardService:
         
         self.db.commit()
 
+    async def recompute_analyst_scores(
+        self,
+        analyst_id: UUID,
+        period: Optional[str] = None,
+        force: bool = False
+    ) -> Dict[str, Any]:
+        """애널리스트 스코어 재계산"""
+        from app.models.evaluation import Evaluation
+        from app.services.ai_agents.evaluation_agent import EvaluationAgent
+        
+        evaluations = self.db.query(Evaluation).filter(
+            Evaluation.analyst_id == analyst_id
+        )
+        
+        if period:
+            evaluations = evaluations.filter(Evaluation.evaluation_period == period)
+        
+        evaluations = evaluations.all()
+        
+        agent = EvaluationAgent(self.db)
+        recomputed_count = 0
+        
+        for evaluation in evaluations:
+            if force or not evaluation.final_score:
+                await agent.evaluate_async(evaluation.id, evaluation.report_id)
+                recomputed_count += 1
+        
+        return {
+            "analyst_id": str(analyst_id),
+            "period": period,
+            "recomputed_count": recomputed_count,
+            "total_evaluations": len(evaluations)
+        }
+
+    async def recompute_company_scores(
+        self,
+        company_id: UUID,
+        period: Optional[str] = None,
+        force: bool = False
+    ) -> Dict[str, Any]:
+        """기업 스코어 재계산"""
+        from app.models.evaluation import Evaluation
+        from app.services.ai_agents.evaluation_agent import EvaluationAgent
+        
+        evaluations = self.db.query(Evaluation).filter(
+            Evaluation.company_id == company_id
+        )
+        
+        if period:
+            evaluations = evaluations.filter(Evaluation.evaluation_period == period)
+        
+        evaluations = evaluations.all()
+        
+        agent = EvaluationAgent(self.db)
+        recomputed_count = 0
+        
+        for evaluation in evaluations:
+            if force or not evaluation.final_score:
+                await agent.evaluate_async(evaluation.id, evaluation.report_id)
+                recomputed_count += 1
+        
+        return {
+            "company_id": str(company_id),
+            "period": period,
+            "recomputed_count": recomputed_count,
+            "total_evaluations": len(evaluations)
+        }
+
+    async def recompute_all_scores(
+        self,
+        period: Optional[str] = None,
+        force: bool = False
+    ) -> Dict[str, Any]:
+        """전체 스코어 재계산"""
+        from app.models.evaluation import Evaluation
+        from app.services.ai_agents.evaluation_agent import EvaluationAgent
+        
+        evaluations = self.db.query(Evaluation)
+        
+        if period:
+            evaluations = evaluations.filter(Evaluation.evaluation_period == period)
+        
+        evaluations = evaluations.all()
+        
+        agent = EvaluationAgent(self.db)
+        recomputed_count = 0
+        
+        for evaluation in evaluations:
+            if force or not evaluation.final_score:
+                await agent.evaluate_async(evaluation.id, evaluation.report_id)
+                recomputed_count += 1
+        
+        return {
+            "period": period,
+            "recomputed_count": recomputed_count,
+            "total_evaluations": len(evaluations)
+        }
+
+    def get_scores(
+        self,
+        analyst_id: Optional[UUID] = None,
+        company_id: Optional[UUID] = None,
+        period: Optional[str] = None,
+        category: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """스코어 조회"""
+        query = self.db.query(Scorecard)
+        
+        if analyst_id:
+            query = query.filter(Scorecard.analyst_id == analyst_id)
+        if company_id:
+            query = query.filter(Scorecard.company_id == company_id)
+        if period:
+            query = query.filter(Scorecard.period == period)
+        
+        scorecards = query.order_by(Scorecard.final_score.desc()).offset(skip).limit(limit).all()
+        
+        return [
+            {
+                "id": str(sc.id),
+                "analyst_id": str(sc.analyst_id),
+                "company_id": str(sc.company_id) if sc.company_id else None,
+                "period": sc.period,
+                "final_score": float(sc.final_score),
+                "ranking": sc.ranking,
+                "scorecard_data": sc.scorecard_data
+            }
+            for sc in scorecards
+        ]
+

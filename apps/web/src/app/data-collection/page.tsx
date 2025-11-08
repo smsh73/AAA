@@ -6,46 +6,173 @@ import Card from '@/components/UI/Card'
 import Table from '@/components/UI/Table'
 import Button from '@/components/UI/Button'
 
+interface Analyst {
+  id: string
+  name: string
+  firm: string
+}
+
+interface CollectionJob {
+  collection_job_id: string
+  status: string
+  progress: Record<string, { total: number; completed: number; failed: number }>
+  overall_progress: number
+  started_at?: string
+  completed_at?: string
+  error_message?: string
+}
+
 interface CollectionLog {
   id: string
   analyst_id: string
+  company_id?: string
+  collection_job_id?: string
   collection_type: string
   status: string
+  collected_data?: any
+  error_message?: string
+  collection_time?: number
   created_at: string
+  updated_at: string
 }
 
 export default function DataCollectionPage() {
+  const [analysts, setAnalysts] = useState<Analyst[]>([])
+  const [selectedAnalyst, setSelectedAnalyst] = useState<string>('')
+  const [collectionTypes, setCollectionTypes] = useState<string[]>([])
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  const [activeJobs, setActiveJobs] = useState<CollectionJob[]>([])
   const [logs, setLogs] = useState<CollectionLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [showForm, setShowForm] = useState(false)
 
   useEffect(() => {
-    // TODO: API 연동
-    setLogs([])
-    setLoading(false)
+    loadAnalysts()
+    loadLogs()
+    // 활성 작업 상태 주기적으로 업데이트 (30초마다)
+    const interval = setInterval(() => {
+      loadActiveJobs()
+    }, 30000)
+    return () => clearInterval(interval)
   }, [])
 
-  const columns = [
-    { key: 'collection_type', label: '수집 타입' },
-    { 
-      key: 'status', 
-      label: '상태',
-      render: (log: CollectionLog) => {
-        const statusMap: Record<string, { label: string; color: string }> = {
-          pending: { label: '대기', color: 'var(--fnguide-gray-500)' },
-          processing: { label: '처리중', color: 'var(--fnguide-secondary)' },
-          success: { label: '완료', color: 'var(--fnguide-primary)' },
-          failed: { label: '실패', color: '#dc2626' },
+  const loadAnalysts = async () => {
+    try {
+      const res = await api.get('/api/analysts')
+      setAnalysts(res.data)
+      setLoading(false)
+    } catch (err) {
+      console.error(err)
+      setLoading(false)
+    }
+  }
+
+  const loadActiveJobs = async () => {
+    try {
+      // 최근 로그에서 활성 작업 ID 추출
+      const recentLogs = await api.get('/api/data-collection/logs?limit=50')
+      const jobIds = new Set<string>()
+      recentLogs.data.forEach((log: CollectionLog) => {
+        if (log.collection_job_id) {
+          jobIds.add(log.collection_job_id)
         }
-        const status = statusMap[log.status] || { label: log.status, color: 'var(--fnguide-gray-500)' }
-        return <span style={{ color: status.color, fontWeight: 500 }}>{status.label}</span>
-      }
-    },
-    { 
-      key: 'created_at', 
-      label: '생성일',
-      render: (log: CollectionLog) => new Date(log.created_at).toLocaleDateString('ko-KR')
-    },
-  ]
+      })
+
+      // 각 작업의 상태 조회
+      const jobStatuses = await Promise.all(
+        Array.from(jobIds).map(async (jobId) => {
+          try {
+            const res = await api.get(`/api/data-collection/${jobId}/status`)
+            return res.data
+          } catch (err) {
+            return null
+          }
+        })
+      )
+
+      setActiveJobs(jobStatuses.filter((job) => job && job.status !== 'completed' && job.status !== 'failed'))
+    } catch (err) {
+      console.error('활성 작업 로드 실패:', err)
+    }
+  }
+
+  const loadLogs = async () => {
+    try {
+      const res = await api.get('/api/data-collection/logs?limit=100')
+      setLogs(res.data)
+      loadActiveJobs()
+    } catch (err) {
+      console.error('로그 로드 실패:', err)
+    }
+  }
+
+  const handleStartCollection = async () => {
+    if (!selectedAnalyst || collectionTypes.length === 0 || !startDate || !endDate) {
+      alert('모든 필드를 입력해주세요.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await api.post('/api/data-collection/start', {
+        analyst_id: selectedAnalyst,
+        collection_types: collectionTypes,
+        start_date: startDate,
+        end_date: endDate,
+      })
+
+      alert(`데이터 수집이 시작되었습니다. 작업 ID: ${res.data.collection_job_id}`)
+      setShowForm(false)
+      setSelectedAnalyst('')
+      setCollectionTypes([])
+      setStartDate('')
+      setEndDate('')
+      
+      // 로그 새로고침
+      setTimeout(() => {
+        loadLogs()
+      }, 2000)
+    } catch (err: any) {
+      alert(`데이터 수집 시작 실패: ${err.response?.data?.detail || err.message}`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCollectionTypeChange = (type: string, checked: boolean) => {
+    if (checked) {
+      setCollectionTypes([...collectionTypes, type])
+    } else {
+      setCollectionTypes(collectionTypes.filter((t) => t !== type))
+    }
+  }
+
+  const collectionTypeLabels: Record<string, string> = {
+    target_price: '목표주가',
+    performance: '실적',
+    sns: 'SNS',
+    media: '언론',
+  }
+
+  const statusLabels: Record<string, string> = {
+    pending: '대기',
+    running: '진행중',
+    completed: '완료',
+    failed: '실패',
+    success: '성공',
+    partial: '부분성공',
+  }
+
+  const statusColors: Record<string, string> = {
+    pending: 'var(--fnguide-gray-500)',
+    running: 'var(--fnguide-secondary)',
+    completed: 'var(--fnguide-primary)',
+    failed: '#dc2626',
+    success: 'var(--fnguide-primary)',
+    partial: '#f59e0b',
+  }
 
   if (loading) {
     return (
@@ -61,13 +188,220 @@ export default function DataCollectionPage() {
     <div className="fnguide-container">
       <div className="fnguide-page-header">
         <h1 className="fnguide-page-title">데이터 수집 관리</h1>
-        <p className="fnguide-page-subtitle">데이터 수집 작업 모니터링</p>
+        <p className="fnguide-page-subtitle">데이터 수집 작업 시작 및 모니터링</p>
       </div>
 
+      {/* 데이터 수집 시작 폼 */}
       <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>새 데이터 수집 작업</h2>
+          <Button
+            variant={showForm ? 'secondary' : 'primary'}
+            onClick={() => setShowForm(!showForm)}
+          >
+            {showForm ? '닫기' : '수집 시작'}
+          </Button>
+        </div>
+
+        {showForm && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '16px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                애널리스트 선택 *
+              </label>
+              <select
+                value={selectedAnalyst}
+                onChange={(e) => setSelectedAnalyst(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid var(--fnguide-gray-300)',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                }}
+              >
+                <option value="">선택하세요</option>
+                {analysts.map((analyst) => (
+                  <option key={analyst.id} value={analyst.id}>
+                    {analyst.name} ({analyst.firm})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                수집 타입 선택 *
+              </label>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                {Object.entries(collectionTypeLabels).map(([type, label]) => (
+                  <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={collectionTypes.includes(type)}
+                      onChange={(e) => handleCollectionTypeChange(type, e.target.checked)}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                  시작일 *
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--fnguide-gray-300)',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                  종료일 *
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--fnguide-gray-300)',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              onClick={handleStartCollection}
+              disabled={submitting}
+              style={{ alignSelf: 'flex-start' }}
+            >
+              {submitting ? '시작 중...' : '수집 시작'}
+            </Button>
+          </div>
+        )}
+      </Card>
+
+      {/* 진행 중인 작업 */}
+      {activeJobs.length > 0 && (
+        <Card>
+          <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>진행 중인 작업</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {activeJobs.map((job) => (
+              <div
+                key={job.collection_job_id}
+                style={{
+                  padding: '16px',
+                  border: '1px solid var(--fnguide-gray-300)',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--fnguide-gray-50)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div>
+                    <strong>작업 ID:</strong> {job.collection_job_id.substring(0, 8)}...
+                  </div>
+                  <span
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: '4px',
+                      backgroundColor: statusColors[job.status] || 'var(--fnguide-gray-500)',
+                      color: 'white',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {statusLabels[job.status] || job.status}
+                  </span>
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>전체 진행률:</strong> {job.overall_progress.toFixed(1)}%
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>상세 진행률:</strong>
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {Object.entries(job.progress).map(([type, progress]) => (
+                      <div key={type} style={{ fontSize: '14px' }}>
+                        {collectionTypeLabels[type] || type}: {progress.completed}/{progress.total} 완료
+                        {progress.failed > 0 && <span style={{ color: '#dc2626' }}> ({progress.failed} 실패)</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {job.started_at && (
+                  <div style={{ fontSize: '12px', color: 'var(--fnguide-gray-600)' }}>
+                    시작: {new Date(job.started_at).toLocaleString('ko-KR')}
+                  </div>
+                )}
+                {job.error_message && (
+                  <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#fee2e2', borderRadius: '4px', fontSize: '14px', color: '#dc2626' }}>
+                    <strong>오류:</strong> {job.error_message}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* 수집 로그 */}
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>수집 로그</h2>
+          <Button variant="secondary" size="sm" onClick={loadLogs}>
+            새로고침
+          </Button>
+        </div>
+
         {logs.length > 0 ? (
           <Table
-            columns={columns}
+            columns={[
+              {
+                key: 'collection_type',
+                label: '수집 타입',
+                render: (log: CollectionLog) => collectionTypeLabels[log.collection_type] || log.collection_type,
+              },
+              {
+                key: 'status',
+                label: '상태',
+                render: (log: CollectionLog) => {
+                  const status = statusLabels[log.status] || log.status
+                  const color = statusColors[log.status] || 'var(--fnguide-gray-500)'
+                  return <span style={{ color, fontWeight: 500 }}>{status}</span>
+                },
+              },
+              {
+                key: 'collection_time',
+                label: '소요 시간',
+                render: (log: CollectionLog) => log.collection_time ? `${log.collection_time.toFixed(2)}초` : '-',
+              },
+              {
+                key: 'created_at',
+                label: '생성일',
+                render: (log: CollectionLog) => new Date(log.created_at).toLocaleString('ko-KR'),
+              },
+              {
+                key: 'error_message',
+                label: '오류',
+                render: (log: CollectionLog) => log.error_message ? (
+                  <span style={{ color: '#dc2626', fontSize: '12px' }}>{log.error_message.substring(0, 50)}...</span>
+                ) : '-',
+              },
+            ]}
             data={logs}
             keyExtractor={(item) => item.id}
           />
@@ -80,4 +414,3 @@ export default function DataCollectionPage() {
     </div>
   )
 }
-

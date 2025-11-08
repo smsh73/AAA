@@ -1,6 +1,18 @@
 import axios from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// 환경변수에서 API URL 가져오기
+// 개발 환경: NEXT_PUBLIC_API_URL 또는 API_URL 환경변수 사용
+// 프로덕션: NEXT_PUBLIC_API_URL 필수
+const getApiUrl = () => {
+  // 브라우저 환경에서는 NEXT_PUBLIC_ 접두사가 있는 변수만 접근 가능
+  if (typeof window !== 'undefined') {
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  }
+  // 서버 사이드에서는 API_URL도 사용 가능
+  return process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:8000'
+}
+
+const API_URL = getApiUrl()
 
 const api = axios.create({
   baseURL: API_URL,
@@ -8,6 +20,36 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 })
+
+// 요청 인터셉터: 에러 처리
+api.interceptors.request.use(
+  (config) => {
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// 응답 인터셉터: 에러 처리
+api.interceptors.response.use(
+  (response) => {
+    return response
+  },
+  (error) => {
+    if (error.response) {
+      // 서버에서 응답이 왔지만 에러 상태 코드
+      console.error('API Error:', error.response.status, error.response.data)
+    } else if (error.request) {
+      // 요청은 보냈지만 응답을 받지 못함
+      console.error('API Request Error: No response received', error.request)
+    } else {
+      // 요청 설정 중 에러
+      console.error('API Error:', error.message)
+    }
+    return Promise.reject(error)
+  }
+)
 
 export default api
 

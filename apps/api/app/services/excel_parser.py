@@ -23,10 +23,10 @@ class ExcelParser:
             
             # 가능한 컬럼명 매핑
             column_mapping = {
-                'name': ['이름', '애널리스트명', '애널리스트', 'Name', 'name', 'NAME'],
-                'firm': ['증권사', '증권사명', '회사', 'Firm', 'firm', 'FIRM'],
-                'department': ['부서', '소속부서', 'Department', 'department', 'DEPARTMENT'],
-                'sector': ['섹터', '업종', 'Sector', 'sector', 'SECTOR'],
+                'name': ['이름', '애널리스트명', '애널리스트', '애널리스트 이름', 'Name', 'name', 'NAME'],
+                'firm': ['증권사', '증권사명', '회사', '리서치센터', 'Firm', 'firm', 'FIRM'],
+                'department': ['부서', '소속부서', '세부 섹터', 'Department', 'department', 'DEPARTMENT'],
+                'sector': ['섹터', '업종', '담당 산업', 'Sector', 'sector', 'SECTOR'],
                 'email': ['이메일', 'Email', 'email', 'EMAIL', 'E-mail'],
             }
             

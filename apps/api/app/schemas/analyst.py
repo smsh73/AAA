@@ -22,6 +22,17 @@ class AnalystCreate(AnalystBase):
     pass
 
 
+class AnalystUpdate(BaseModel):
+    name: Optional[str] = None
+    firm: Optional[str] = None
+    department: Optional[str] = None
+    sector: Optional[str] = None
+    experience_years: Optional[int] = None
+    email: Optional[EmailStr] = None
+    profile_url: Optional[str] = None
+    bio: Optional[str] = None
+
+
 class AnalystResponse(AnalystBase):
     id: UUID
     created_at: datetime

@@ -6,7 +6,7 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 from app.models.analyst import Analyst
-from app.schemas.analyst import AnalystCreate, AnalystResponse, AnalystBulkImportResponse
+from app.schemas.analyst import AnalystCreate, AnalystUpdate, AnalystResponse, AnalystBulkImportResponse
 from app.services.data_collection_service import DataCollectionService
 
 
@@ -44,6 +44,30 @@ class AnalystService:
         self.db.commit()
         self.db.refresh(analyst)
         return analyst
+
+    def update_analyst(self, analyst_id: UUID, analyst_data: AnalystUpdate) -> Optional[Analyst]:
+        """애널리스트 수정"""
+        analyst = self.get_analyst(analyst_id)
+        if not analyst:
+            return None
+        
+        update_data = analyst_data.dict(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(analyst, key, value)
+        
+        self.db.commit()
+        self.db.refresh(analyst)
+        return analyst
+
+    def delete_analyst(self, analyst_id: UUID) -> bool:
+        """애널리스트 삭제"""
+        analyst = self.get_analyst(analyst_id)
+        if not analyst:
+            return False
+        
+        self.db.delete(analyst)
+        self.db.commit()
+        return True
 
     async def bulk_import_and_start_collection(
         self,

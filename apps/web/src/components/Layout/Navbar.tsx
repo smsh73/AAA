@@ -10,11 +10,13 @@ export default function Navbar() {
   const menuItems = [
     { href: '/dashboard', label: '대시보드' },
     { href: '/analysts', label: '애널리스트' },
+    { href: '/companies', label: '기업' },
     { href: '/reports', label: '리포트' },
     { href: '/evaluations', label: '평가' },
     { href: '/scorecards', label: '스코어카드' },
     { href: '/awards', label: '어워즈' },
     { href: '/data-collection', label: '데이터 수집' },
+    { href: '/agents', label: '에이전트' },
   ]
 
   return (
