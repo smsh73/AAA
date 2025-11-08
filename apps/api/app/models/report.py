@@ -21,6 +21,7 @@ class Report(BaseModel):
     source_url = Column(Text)
     file_path = Column(Text)  # PDF 파일 경로
     file_size = Column(Integer)  # 파일 크기 (bytes)
+    status = Column(String(20), default="pending", index=True)  # pending, processing, completed, failed
 
     # Extracted content
     parsed_json = Column(JSONB)  # 파싱된 JSON 데이터

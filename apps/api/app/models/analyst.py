@@ -26,4 +26,5 @@ class Analyst(BaseModel):
     scorecards = relationship("Scorecard", back_populates="analyst")
     awards = relationship("Award", back_populates="analyst")
     data_collection_logs = relationship("DataCollectionLog", back_populates="analyst")
+    collection_jobs = relationship("CollectionJob", back_populates="analyst")
 

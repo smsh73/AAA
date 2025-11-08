@@ -13,6 +13,7 @@ class DataCollectionLog(BaseModel):
 
     analyst_id = Column(UUID(as_uuid=True), ForeignKey("analysts.id"), nullable=False, index=True)
     company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), index=True)
+    collection_job_id = Column(UUID(as_uuid=True), ForeignKey("collection_jobs.id"), index=True)
 
     collection_type = Column(String(50), nullable=False, index=True)  # target_price, performance, sns, media
     prompt_template_id = Column(String(100))
@@ -27,4 +28,5 @@ class DataCollectionLog(BaseModel):
     # Relationships
     analyst = relationship("Analyst", back_populates="data_collection_logs")
     company = relationship("Company", back_populates="data_collection_logs")
+    collection_job = relationship("CollectionJob", back_populates="logs")
 

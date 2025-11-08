@@ -43,14 +43,21 @@ class PerplexityService:
             "top_p": 0.9,
         }
 
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=payload
-            )
-            response.raise_for_status()
-            return response.json()
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.TimeoutException as e:
+            raise TimeoutError(f"Perplexity API 요청 시간 초과: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            raise ValueError(f"Perplexity API HTTP 오류 ({e.response.status_code}): {str(e)}")
+        except httpx.RequestError as e:
+            raise ConnectionError(f"Perplexity API 연결 오류: {str(e)}")
 
     async def collect_target_price_data(
         self,

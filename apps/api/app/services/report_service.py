@@ -41,12 +41,23 @@ class ReportService:
             content = await file.read()
             await f.write(content)
 
+        # 파일명 인코딩 처리 (한글 파일명 지원)
+        filename = file.filename or "Untitled"
+        if isinstance(filename, bytes):
+            try:
+                filename = filename.decode('utf-8')
+            except UnicodeDecodeError:
+                try:
+                    filename = filename.decode('cp949')
+                except UnicodeDecodeError:
+                    filename = filename.decode('latin-1', errors='replace')
+        
         # 리포트 레코드 생성
         report = Report(
             id=report_id,
             analyst_id=analyst_id,
             company_id=company_id,
-            title=file.filename or "Untitled",
+            title=filename,
             publication_date=datetime.now().date(),
             file_path=str(file_path),
             file_size=len(content),

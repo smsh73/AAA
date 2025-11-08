@@ -12,6 +12,7 @@ from .scorecard import Scorecard
 from .award import Award
 from .data_source import DataSource
 from .data_collection_log import DataCollectionLog
+from .collection_job import CollectionJob
 from .evaluation_report import EvaluationReport
 from .prompt_template import PromptTemplate
 
@@ -29,6 +30,7 @@ __all__ = [
     "Award",
     "DataSource",
     "DataCollectionLog",
+    "CollectionJob",
     "EvaluationReport",
     "PromptTemplate",
 ]

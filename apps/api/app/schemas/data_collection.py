@@ -2,7 +2,7 @@
 Data collection schemas
 """
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, date
 
@@ -23,6 +23,29 @@ class DataCollectionStartResponse(BaseModel):
 class DataCollectionStatusResponse(BaseModel):
     collection_job_id: UUID
     status: str
-    progress: dict
+    progress: Dict[str, Any]
     overall_progress: float
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DataCollectionLogResponse(BaseModel):
+    id: UUID
+    analyst_id: UUID
+    company_id: Optional[UUID] = None
+    collection_job_id: Optional[UUID] = None
+    collection_type: str
+    status: str
+    collected_data: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+    collection_time: Optional[float] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 

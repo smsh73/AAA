@@ -3,7 +3,7 @@ Data Collection Agent - 데이터 수집 에이전트
 """
 from sqlalchemy.orm import Session
 from uuid import UUID
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from app.models.data_collection_log import DataCollectionLog
@@ -24,7 +24,8 @@ class DataCollectionAgent:
         self,
         analyst_id: UUID,
         collection_type: str,
-        params: Dict[str, Any]
+        params: Dict[str, Any],
+        collection_job_id: Optional[UUID] = None
     ) -> Dict[str, Any]:
         """데이터 수집"""
         # 프롬프트 템플릿 조회
@@ -55,7 +56,8 @@ class DataCollectionAgent:
             # 로그 저장
             log = DataCollectionLog(
                 analyst_id=analyst_id,
-                company_id=params.get("company_id"),
+                company_id=UUID(params.get("company_id")) if params.get("company_id") else None,
+                collection_job_id=collection_job_id,
                 collection_type=collection_type,
                 prompt_template_id=str(template.id),
                 perplexity_request={"prompt": prompt, "params": params},
@@ -80,7 +82,8 @@ class DataCollectionAgent:
             # 에러 로그 저장
             log = DataCollectionLog(
                 analyst_id=analyst_id,
-                company_id=params.get("company_id"),
+                company_id=UUID(params.get("company_id")) if params.get("company_id") else None,
+                collection_job_id=collection_job_id,
                 collection_type=collection_type,
                 prompt_template_id=str(template.id),
                 perplexity_request={"prompt": prompt, "params": params},
