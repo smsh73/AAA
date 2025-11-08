@@ -32,3 +32,12 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 45967
+externalPort = 3000
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd apps/web && pnpm run start"]
+build = ["bash", "-c", "cd apps/web && pnpm install && pnpm run build"]

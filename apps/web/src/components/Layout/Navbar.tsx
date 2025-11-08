@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import '../styles/fnguide.css'
+import '../../styles/fnguide.css'
 
 export default function Navbar() {
   const pathname = usePathname()

@@ -80,9 +80,9 @@ function RecentEvaluationsChart() {
     api.get('/api/dashboard/recent-evaluations', { params: { limit: 10 } })
       .then((res) => {
         const evaluations = res.data.evaluations || []
-        const chartData = evaluations.map((eval: any, index: number) => ({
+        const chartData = evaluations.map((evaluation: any, index: number) => ({
           name: `평가 ${index + 1}`,
-          score: eval.final_score || 0,
+          score: evaluation.final_score || 0,
         }))
         setData(chartData)
       })
