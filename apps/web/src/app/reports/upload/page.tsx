@@ -1,16 +1,52 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
+
+interface Analyst {
+  id: string
+  name: string
+  firm: string
+}
+
+interface Company {
+  id: string
+  name: string
+  ticker?: string
+}
 
 export default function ReportUploadPage() {
   const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [analysts, setAnalysts] = useState<Analyst[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [selectedAnalystId, setSelectedAnalystId] = useState<string>('')
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
+  const [loadingOptions, setLoadingOptions] = useState(true)
+
+  useEffect(() => {
+    loadOptions()
+  }, [])
+
+  const loadOptions = async () => {
+    try {
+      const [analystsRes, companiesRes] = await Promise.all([
+        api.get('/api/analysts'),
+        api.get('/api/companies')
+      ])
+      setAnalysts(analystsRes.data?.analysts || [])
+      setCompanies(companiesRes.data?.companies || [])
+    } catch (err) {
+      console.error('옵션 로드 실패:', err)
+    } finally {
+      setLoadingOptions(false)
+    }
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -27,6 +63,12 @@ export default function ReportUploadPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      if (selectedAnalystId) {
+        formData.append('analyst_id', selectedAnalystId)
+      }
+      if (selectedCompanyId) {
+        formData.append('company_id', selectedCompanyId)
+      }
 
       const res = await api.post('/api/reports/upload', formData, {
         headers: {
@@ -74,6 +116,40 @@ export default function ReportUploadPage() {
               선택된 파일: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
             </p>
           )}
+        </div>
+
+        <div className="fnguide-form-group">
+          <label className="fnguide-form-label">애널리스트 선택 (선택사항)</label>
+          <select
+            value={selectedAnalystId}
+            onChange={(e) => setSelectedAnalystId(e.target.value)}
+            className="fnguide-form-input"
+            disabled={uploading || loadingOptions}
+          >
+            <option value="">선택 안 함</option>
+            {analysts.map((analyst) => (
+              <option key={analyst.id} value={analyst.id}>
+                {analyst.name} ({analyst.firm})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="fnguide-form-group">
+          <label className="fnguide-form-label">기업 선택 (선택사항)</label>
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="fnguide-form-input"
+            disabled={uploading || loadingOptions}
+          >
+            <option value="">선택 안 함</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name} {company.ticker && `(${company.ticker})`}
+              </option>
+            ))}
+          </select>
         </div>
 
         {uploading && (

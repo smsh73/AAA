@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Dict, Any, List, Optional
 
 from app.models.evaluation import Evaluation, EvaluationScore
+from app.models.enums import EvaluationStatus
 from app.models.report import Report
 from app.schemas.evaluation import EvaluationResponse
 from app.services.ai_agents.evaluation_agent import EvaluationAgent
@@ -32,13 +33,22 @@ class EvaluationService:
         if not report:
             raise ValueError(f"Report {report_id} not found")
 
+        # 중복 평가 방지 (활성 상태만 체크)
+        existing = self.db.query(Evaluation).filter(
+            Evaluation.report_id == report_id,
+            Evaluation.status.in_([EvaluationStatus.PENDING.value, EvaluationStatus.PROCESSING.value])
+        ).first()
+        
+        if existing:
+            raise ValueError(f"이미 진행 중인 평가가 있습니다: {existing.id}")
+        
         evaluation = Evaluation(
             report_id=report_id,
             analyst_id=report.analyst_id,
             company_id=report.company_id,
             evaluation_period=self._get_current_period(),
             evaluation_date=datetime.now().date(),
-            status="processing"
+            status=EvaluationStatus.PROCESSING.value
         )
         self.db.add(evaluation)
         self.db.commit()
@@ -100,7 +110,7 @@ class EvaluationService:
             }
         )
 
-        evaluation.status = "completed"
+        evaluation.status = EvaluationStatus.COMPLETED.value
         self.db.commit()
 
         return {

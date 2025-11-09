@@ -1,7 +1,7 @@
 """
 Reports router
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
@@ -24,11 +24,12 @@ async def upload_report(
     file: UploadFile = File(...),
     analyst_id: Optional[UUID] = None,
     company_id: Optional[UUID] = None,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db)
 ):
     """리포트 업로드 및 추출 시작"""
     service = ReportService(db)
-    return await service.upload_and_extract(file, analyst_id, company_id)
+    return await service.upload_and_extract(file, analyst_id, company_id, background_tasks)
 
 
 @router.get("/{report_id}/extraction-status", response_model=ExtractionStatusResponse)

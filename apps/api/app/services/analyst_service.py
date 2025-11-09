@@ -116,14 +116,23 @@ class AnalystService:
 
         self.db.commit()
 
-        # 자료수집 시작
+        # 자료수집 시작 (Redis/Celery가 있는 경우에만)
         data_collection_started = False
         if created_analyst_ids:
-            from app.tasks.data_collection_tasks import start_collection_for_analyst_task
-            for analyst_id in created_analyst_ids:
-                # Celery 작업으로 비동기 실행
-                start_collection_for_analyst_task.delay(str(analyst_id))
-            data_collection_started = True
+            try:
+                from app.tasks.data_collection_tasks import start_collection_for_analyst_task
+                for analyst_id in created_analyst_ids:
+                    # Celery 작업으로 비동기 실행
+                    # Redis가 없으면 에러를 무시하고 애널리스트만 등록
+                    start_collection_for_analyst_task.delay(str(analyst_id))
+                data_collection_started = True
+            except Exception as e:
+                # Redis/Celery가 없거나 연결 실패 시 에러를 무시
+                # 애널리스트는 이미 등록되었으므로 데이터 수집은 나중에 수동으로 시작 가능
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"데이터 수집 자동 시작 실패 (Redis/Celery 미사용 가능): {str(e)}")
+                data_collection_started = False
 
         return AnalystBulkImportResponse(
             import_id=import_id,

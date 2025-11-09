@@ -10,10 +10,15 @@ import aiofiles
 from pathlib import Path
 
 from app.models.report import Report
+from app.models.enums import ReportStatus
 from app.schemas.report import ReportUploadResponse, ExtractionStatusResponse
 from app.services.document_extraction_service import DocumentExtractionService
-from app.tasks.report_tasks import parse_report_task
-from fastapi import UploadFile
+from app.database import SessionLocal
+from fastapi import UploadFile, BackgroundTasks
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ReportService:
@@ -28,9 +33,33 @@ class ReportService:
         self,
         file: UploadFile,
         analyst_id: Optional[UUID] = None,
-        company_id: Optional[UUID] = None
+        company_id: Optional[UUID] = None,
+        background_tasks: Optional[BackgroundTasks] = None
     ) -> ReportUploadResponse:
         """리포트 업로드 및 추출 시작"""
+        # 정합성 검증
+        if analyst_id:
+            from app.models.analyst import Analyst
+            analyst = self.db.query(Analyst).filter(Analyst.id == analyst_id).first()
+            if not analyst:
+                raise ValueError(f"Analyst {analyst_id} not found")
+        
+        if company_id:
+            from app.models.company import Company
+            company = self.db.query(Company).filter(Company.id == company_id).first()
+            if not company:
+                raise ValueError(f"Company {company_id} not found")
+            
+            # 애널리스트-기업 섹터 매칭 검증
+            if analyst_id and analyst:
+                if analyst.sector and company.sector:
+                    if analyst.sector != company.sector:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(
+                            f"섹터 불일치: 애널리스트 섹터({analyst.sector}) != 기업 섹터({company.sector})"
+                        )
+        
         report_id = uuid4()
 
         # 파일 저장
@@ -61,19 +90,82 @@ class ReportService:
             publication_date=datetime.now().date(),
             file_path=str(file_path),
             file_size=len(content),
-            status="processing"
+            status=ReportStatus.PROCESSING.value
         )
         self.db.add(report)
         self.db.commit()
 
-        # 비동기 추출 시작 (Celery 작업으로 실행)
-        parse_report_task.delay(str(report_id), str(file_path))
+        # BackgroundTasks로 비동기 파싱 시작
+        if background_tasks:
+            background_tasks.add_task(
+                self._parse_report_background,
+                str(report_id),
+                str(file_path)
+            )
+        else:
+            # BackgroundTasks가 없으면 Celery 시도, 실패 시 동기 실행
+            try:
+                from app.tasks.report_tasks import parse_report_task
+                parse_report_task.delay(str(report_id), str(file_path))
+            except Exception as e:
+                logger.warning(f"Celery 작업 시작 실패, 동기 실행으로 전환: {str(e)}")
+                # 동기적으로 파싱 실행
+                try:
+                    from app.services.ai_agents.report_parsing_agent import ReportParsingAgent
+                    
+                    # 새 DB 세션 생성 (세션 충돌 방지)
+                    db = SessionLocal()
+                    try:
+                        agent = ReportParsingAgent(db)
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            loop.run_until_complete(agent.parse_report(report_id, str(file_path)))
+                        finally:
+                            loop.close()
+                    finally:
+                        db.close()
+                except Exception as parse_error:
+                    logger.error(f"리포트 파싱 실패: {str(parse_error)}")
+                    report.status = ReportStatus.FAILED.value
+                    self.db.commit()
 
         return ReportUploadResponse(
             report_id=report_id,
-            status="processing",
+            status=ReportStatus.PROCESSING.value,
             estimated_completion_time=datetime.utcnow() + timedelta(minutes=10)
         )
+    
+    def _parse_report_background(self, report_id_str: str, file_path: str):
+        """BackgroundTasks에서 실행되는 리포트 파싱 함수"""
+        from app.services.ai_agents.report_parsing_agent import ReportParsingAgent
+        from uuid import UUID
+        
+        # 새 DB 세션 생성 (세션 충돌 방지)
+        db = SessionLocal()
+        try:
+            agent = ReportParsingAgent(db)
+            report_id = UUID(report_id_str)
+            
+            # 새 이벤트 루프 생성
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(agent.parse_report(report_id, file_path))
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"리포트 파싱 실패 (background): {str(e)}")
+            # 리포트 상태를 실패로 업데이트
+            try:
+                report = db.query(Report).filter(Report.id == UUID(report_id_str)).first()
+                if report:
+                    report.status = ReportStatus.FAILED.value
+                    db.commit()
+            except Exception as update_error:
+                logger.error(f"리포트 상태 업데이트 실패: {str(update_error)}")
+        finally:
+            db.close()
 
     def get_extraction_status(self, report_id: UUID) -> Optional[ExtractionStatusResponse]:
         """추출 상태 조회"""
@@ -83,7 +175,7 @@ class ReportService:
 
         return ExtractionStatusResponse(
             report_id=report_id,
-            status=report.status or "processing",
+            status=report.status or ReportStatus.PROCESSING.value,
             progress={
                 "pages_processed": 0,
                 "total_pages": 0,

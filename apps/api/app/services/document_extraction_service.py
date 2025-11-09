@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from io import BytesIO
 import os
+import json
 from PIL import Image
 import base64
 
@@ -182,7 +183,7 @@ class DocumentExtractionService:
                     "language": "ko"  # 한글 기본값
                 })
 
-            # 단어별 추출 (위치 정보 포함)
+            # 단어별 추출 (위치 정보 포함) - 한글 및 수치 인식 강화
             words = page.extract_words(
                 x_tolerance=3,
                 y_tolerance=3,
@@ -192,6 +193,22 @@ class DocumentExtractionService:
                 vertical_ttb=True,
                 extra_attrs=["fontname", "size"]
             )
+            
+            # 수치 데이터 추출 (한글과 함께)
+            numeric_patterns = self._extract_numeric_data(full_text)
+            if numeric_patterns:
+                text_blocks.append({
+                    "id": f"numeric_{page_num}",
+                    "content": json.dumps(numeric_patterns, ensure_ascii=False),
+                    "page_number": page_num,
+                    "bbox": [0, 0, page.width, page.height],
+                    "font_size": None,
+                    "font_style": None,
+                    "order": -1,  # 수치 데이터는 먼저 표시
+                    "confidence": "high",
+                    "language": "ko",
+                    "data_type": "numeric"
+                })
 
             if words:
                 # 단어들을 문단으로 그룹화
@@ -443,4 +460,91 @@ class DocumentExtractionService:
         bottom = max(w.get("bottom", 0) for w in words)
         
         return [x0, top, x1 - x0, bottom - top]
+    
+    def _extract_numeric_data(self, text: str) -> List[Dict[str, Any]]:
+        """텍스트에서 수치 데이터 추출 (한글 컨텍스트 포함)"""
+        import re
+        
+        numeric_data = []
+        
+        # 패턴 1: 목표주가 (예: "목표주가 120,000원", "TP 120000원")
+        target_price_patterns = [
+            r'목표주가\s*[:：]?\s*([\d,]+)\s*원',
+            r'TP\s*[:：]?\s*([\d,]+)\s*원',
+            r'Target\s*Price\s*[:：]?\s*([\d,]+)',
+        ]
+        
+        for pattern in target_price_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                price_str = match.group(1).replace(",", "")
+                try:
+                    price = float(price_str)
+                    numeric_data.append({
+                        "type": "target_price",
+                        "value": price,
+                        "unit": "원",
+                        "context": match.group(0),
+                        "position": match.start()
+                    })
+                except ValueError:
+                    pass
+        
+        # 패턴 2: 실적 예측 (예: "매출액 1조 2,000억원", "영업이익 500억원")
+        performance_patterns = [
+            r'(매출액|영업이익|당기순이익|순이익)\s*[:：]?\s*([\d,]+)\s*(억|조|원|천억)',
+            r'(Revenue|Operating\s*Profit|Net\s*Profit)\s*[:：]?\s*([\d,]+)',
+        ]
+        
+        for pattern in performance_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                metric = match.group(1)
+                value_str = match.group(2).replace(",", "")
+                unit = match.group(3) if len(match.groups()) > 2 else ""
+                
+                try:
+                    value = float(value_str)
+                    # 단위 변환 (조, 억, 천억)
+                    if "조" in unit or "trillion" in unit.lower():
+                        value = value * 10000  # 조 -> 억
+                    elif "천억" in unit:
+                        value = value * 1000  # 천억 -> 억
+                    
+                    numeric_data.append({
+                        "type": "performance",
+                        "metric": metric,
+                        "value": value,
+                        "unit": unit or "억원",
+                        "context": match.group(0),
+                        "position": match.start()
+                    })
+                except ValueError:
+                    pass
+        
+        # 패턴 3: 주가 관련 (예: "현재주가 50,000원", "52주 최고가 60,000원")
+        stock_price_patterns = [
+            r'(현재주가|현재가|주가|52주\s*최고가|52주\s*최저가)\s*[:：]?\s*([\d,]+)\s*원',
+            r'(Current\s*Price|Stock\s*Price|52W\s*High|52W\s*Low)\s*[:：]?\s*([\d,]+)',
+        ]
+        
+        for pattern in stock_price_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                price_type = match.group(1)
+                price_str = match.group(2).replace(",", "")
+                try:
+                    price = float(price_str)
+                    numeric_data.append({
+                        "type": "stock_price",
+                        "price_type": price_type,
+                        "value": price,
+                        "unit": "원",
+                        "context": match.group(0),
+                        "position": match.start()
+                    })
+                except ValueError:
+                    pass
+        
+        return numeric_data
 

@@ -270,54 +270,106 @@ async def run_portfolio_analysis_agent(
 
 @router.get("/status")
 async def get_agents_status(db: Session = Depends(get_db)):
-    """에이전트 상태 조회"""
+    """에이전트 상태 조회 - 실제 데이터 기반"""
+    from app.models.collection_job import CollectionJob
+    from app.models.evaluation import Evaluation
+    from app.models.report import Report
+    from app.models.data_collection_log import DataCollectionLog
+    from app.models.enums import CollectionJobStatus, EvaluationStatus, ReportStatus
+    from datetime import datetime, timedelta
+    
+    # 최근 24시간 내 실행된 작업으로 에이전트 상태 판단
+    recent_time = datetime.utcnow() - timedelta(hours=24)
+    
+    agents_info = []
+    
+    # 각 에이전트별 최근 작업 상태 확인
+    agent_configs = [
+        ("evaluation", "평가 에이전트", Evaluation, EvaluationStatus),
+        ("data_collection", "데이터 수집 에이전트", CollectionJob, CollectionJobStatus),
+        ("report_parsing", "리포트 파싱 에이전트", Report, ReportStatus),
+        ("award", "어워드 에이전트", None, None),
+        ("report_generation", "리포트 생성 에이전트", None, None),
+        ("company_verification", "기업정보 검증 에이전트", None, None),
+        ("performance_verification", "실적 검증 에이전트", None, None),
+        ("stock_tracking", "추천종목 추적 에이전트", None, None),
+        ("orchestrator", "멀티 LLM 오케스트레이터", None, None),
+        ("portfolio_analysis", "포트폴리오 분석 에이전트", None, None),
+    ]
+    
+    for agent_name, description, model_class, status_enum in agent_configs:
+        status = "inactive"
+        last_run = None
+        
+        if model_class == Evaluation:
+            # 평가 에이전트: 최근 평가 작업 확인
+            recent_item = db.query(Evaluation).filter(
+                Evaluation.created_at >= recent_time
+            ).order_by(Evaluation.created_at.desc()).first()
+            
+            if recent_item:
+                if recent_item.status == EvaluationStatus.COMPLETED.value:
+                    status = "active"
+                elif recent_item.status == EvaluationStatus.PROCESSING.value:
+                    status = "running"
+                elif recent_item.status == EvaluationStatus.FAILED.value:
+                    status = "error"
+                last_run = recent_item.created_at.isoformat()
+        
+        elif model_class == CollectionJob:
+            # 데이터 수집 에이전트: 최근 수집 작업 확인
+            recent_item = db.query(CollectionJob).filter(
+                CollectionJob.created_at >= recent_time
+            ).order_by(CollectionJob.created_at.desc()).first()
+            
+            if recent_item:
+                if recent_item.status == CollectionJobStatus.COMPLETED.value:
+                    status = "active"
+                elif recent_item.status == CollectionJobStatus.RUNNING.value:
+                    status = "running"
+                elif recent_item.status == CollectionJobStatus.FAILED.value:
+                    status = "error"
+                last_run = recent_item.created_at.isoformat()
+        
+        elif model_class == Report:
+            # 리포트 파싱 에이전트: 최근 리포트 파싱 확인
+            recent_item = db.query(Report).filter(
+                Report.created_at >= recent_time,
+                Report.status.in_([ReportStatus.PROCESSING.value, ReportStatus.COMPLETED.value])
+            ).order_by(Report.created_at.desc()).first()
+            
+            if recent_item:
+                if recent_item.status == ReportStatus.COMPLETED.value:
+                    status = "active"
+                elif recent_item.status == ReportStatus.PROCESSING.value:
+                    status = "running"
+                last_run = recent_item.created_at.isoformat()
+        
+        else:
+            # 기타 에이전트: 데이터 수집 로그에서 확인
+            recent_log = db.query(DataCollectionLog).filter(
+                DataCollectionLog.collection_type.like(f"%{agent_name}%"),
+                DataCollectionLog.created_at >= recent_time
+            ).order_by(DataCollectionLog.created_at.desc()).first()
+            
+            if recent_log:
+                if recent_log.status == "success":
+                    status = "active"
+                elif recent_log.status == "failed":
+                    status = "error"
+                last_run = recent_log.created_at.isoformat()
+        
+        agents_info.append({
+            "name": agent_name,
+            "status": status,
+            "description": description,
+            "last_run": last_run
+        })
+    
     return {
-        "agents": [
-            {
-                "name": "evaluation",
-                "status": "active",
-                "description": "평가 에이전트"
-            },
-            {
-                "name": "award",
-                "status": "active",
-                "description": "어워드 에이전트"
-            },
-            {
-                "name": "report_generation",
-                "status": "active",
-                "description": "리포트 생성 에이전트"
-            },
-            {
-                "name": "report_parsing",
-                "status": "active",
-                "description": "리포트 파싱 에이전트"
-            },
-            {
-                "name": "company_verification",
-                "status": "active",
-                "description": "기업정보 검증 에이전트"
-            },
-            {
-                "name": "performance_verification",
-                "status": "active",
-                "description": "실적 검증 에이전트"
-            },
-            {
-                "name": "stock_tracking",
-                "status": "active",
-                "description": "추천종목 추적 에이전트"
-            },
-            {
-                "name": "orchestrator",
-                "status": "active",
-                "description": "멀티 LLM 오케스트레이터"
-            },
-            {
-                "name": "portfolio_analysis",
-                "status": "active",
-                "description": "포트폴리오 분석 에이전트"
-            }
-        ]
+        "agents": agents_info,
+        "total": len(agents_info),
+        "active_count": sum(1 for a in agents_info if a["status"] == "active"),
+        "timestamp": datetime.utcnow().isoformat()
     }
 

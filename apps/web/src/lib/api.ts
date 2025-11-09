@@ -3,13 +3,17 @@ import axios from 'axios'
 // 환경변수에서 API URL 가져오기
 // 개발 환경: NEXT_PUBLIC_API_URL 또는 API_URL 환경변수 사용
 // 프로덕션: NEXT_PUBLIC_API_URL 필수
+// 빈 문자열이거나 설정되지 않으면 상대 경로 사용 (Next.js rewrites 활용)
 const getApiUrl = () => {
-  // 브라우저 환경에서는 NEXT_PUBLIC_ 접두사가 있는 변수만 접근 가능
-  if (typeof window !== 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  
+  // 빈 문자열이거나 설정되지 않은 경우 상대 경로 사용
+  // Next.js rewrites를 통해 /api/* 요청을 백엔드로 프록시
+  if (!apiUrl || apiUrl.trim() === '') {
+    return ''
   }
-  // 서버 사이드에서는 API_URL도 사용 가능
-  return process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:8000'
+  
+  return apiUrl
 }
 
 const API_URL = getApiUrl()
