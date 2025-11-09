@@ -75,13 +75,18 @@ class EvaluationService:
         if not evaluation:
             raise ValueError(f"Evaluation {evaluation_id} not found")
 
-        # 평가 점수 조회
-        scores = self.db.query(EvaluationScore).filter(
+        # 평가 점수 조회 (7개 KPI 점수)
+        evaluation_scores = self.db.query(EvaluationScore).filter(
             EvaluationScore.evaluation_id == evaluation_id
         ).all()
 
-        # 1단계: AI 정량 분석 점수 (40%)
-        ai_quantitative_score = self._calculate_ai_quantitative_score(scores)
+        # KPI 점수 매핑 (7개 KPI 점수를 모두 포함)
+        kpi_scores = {}
+        for score in evaluation_scores:
+            kpi_scores[score.score_type] = float(score.score_value)
+        
+        # 1단계: AI 정량 분석 점수 (40%) - KPI 점수 기반 계산
+        ai_quantitative_score = self._calculate_ai_quantitative_score(evaluation_scores)
 
         # 2단계: SNS·시장 반응 점수 (30%)
         sns_market_score = await self._calculate_sns_market_score(evaluation)
@@ -95,7 +100,12 @@ class EvaluationService:
             sns_market_score * Decimal("0.30") +
             expert_survey_score * Decimal("0.30")
         )
-
+        
+        # 상위 3개 점수도 포함 (하위 호환성)
+        kpi_scores["ai_quantitative_score"] = float(ai_quantitative_score)
+        kpi_scores["sns_market_score"] = float(sns_market_score)
+        kpi_scores["expert_survey_score"] = float(expert_survey_score)
+        
         # 스코어카드 생성
         scorecard = self.scorecard_service.create_scorecard(
             evaluation_id=evaluation_id,
@@ -103,11 +113,7 @@ class EvaluationService:
             company_id=evaluation.company_id,
             period=evaluation.evaluation_period,
             final_score=float(final_score),
-            scores={
-                "ai_quantitative_score": float(ai_quantitative_score),
-                "sns_market_score": float(sns_market_score),
-                "expert_survey_score": float(expert_survey_score),
-            }
+            scores=kpi_scores
         )
 
         evaluation.status = EvaluationStatus.COMPLETED.value
@@ -151,36 +157,75 @@ class EvaluationService:
         self,
         evaluation: Evaluation
     ) -> Decimal:
-        """SNS·시장 반응 점수 계산"""
-        # SNS 주목도 (10%) + 언론 빈도 (5%) = 15%
-        # 전체 30% 중 15%이므로 0.5 가중치
+        """SNS·시장 반응 점수 계산 - 실제 데이터 기반"""
+        from datetime import datetime, timedelta
         
-        # DataCollectionLog에서 SNS/Media 데이터 조회
+        # 최근 3개월 데이터 조회
+        three_months_ago = datetime.now() - timedelta(days=90)
+        
+        # SNS 데이터 조회
         sns_logs = self.db.query(DataCollectionLog).filter(
             DataCollectionLog.analyst_id == evaluation.analyst_id,
             DataCollectionLog.collection_type == "sns",
-            DataCollectionLog.status == "success"
+            DataCollectionLog.status == "success",
+            DataCollectionLog.created_at >= three_months_ago
         ).all()
         
+        # Media 데이터 조회
         media_logs = self.db.query(DataCollectionLog).filter(
             DataCollectionLog.analyst_id == evaluation.analyst_id,
             DataCollectionLog.collection_type == "media",
-            DataCollectionLog.status == "success"
+            DataCollectionLog.status == "success",
+            DataCollectionLog.created_at >= three_months_ago
         ).all()
         
-        # 점수 계산 (실제로는 수집된 데이터 기반 계산)
-        sns_score = Decimal("75.0")
+        # SNS 주목도 점수 계산
+        sns_score = Decimal("0.0")
         if sns_logs:
-            # 수집된 데이터에서 점수 계산
-            # 실제 구현 필요
-            pass
+            total_attention = Decimal("0.0")
+            valid_logs = 0
+            
+            for log in sns_logs:
+                if log.collected_data:
+                    attention_score = log.collected_data.get("attention_score", 0)
+                    if attention_score > 0:
+                        total_attention += Decimal(str(attention_score))
+                        valid_logs += 1
+            
+            if valid_logs > 0:
+                avg_attention = total_attention / Decimal(str(valid_logs))
+                # 정규화 (기준: 평균 주목도 100 = 100점)
+                sns_score = min(Decimal("100.0"), (avg_attention / Decimal("100.0")) * Decimal("100.0"))
+        else:
+            # 데이터가 없으면 기본값
+            sns_score = Decimal("50.0")
         
-        media_score = Decimal("70.0")
+        # 미디어 언급 빈도 점수 계산
+        media_score = Decimal("0.0")
         if media_logs:
-            # 수집된 데이터에서 점수 계산
-            # 실제 구현 필요
-            pass
+            total_mentions = len(media_logs)
+            months = Decimal("3.0")
+            monthly_mentions = Decimal(str(total_mentions)) / months
+            
+            # 기준: 월 10회 언급 = 100점
+            if monthly_mentions >= Decimal("10.0"):
+                media_score = Decimal("100.0")
+            elif monthly_mentions >= Decimal("7.0"):
+                media_score = Decimal("80.0")
+            elif monthly_mentions >= Decimal("5.0"):
+                media_score = Decimal("60.0")
+            elif monthly_mentions >= Decimal("3.0"):
+                media_score = Decimal("40.0")
+            elif monthly_mentions >= Decimal("1.0"):
+                media_score = Decimal("20.0")
+            else:
+                media_score = Decimal("10.0")
+        else:
+            # 데이터가 없으면 기본값
+            media_score = Decimal("50.0")
         
+        # SNS 주목도 (10%) + 언론 빈도 (5%) = 15%
+        # 전체 30% 중 15%이므로 가중 평균
         return (sns_score * Decimal("0.10") + media_score * Decimal("0.05")) / Decimal("0.15")
 
     async def _calculate_expert_survey_score(
@@ -238,3 +283,99 @@ class EvaluationService:
         now = datetime.now()
         quarter = (now.month - 1) // 3 + 1
         return f"{now.year}-Q{quarter}"
+    
+    def get_evaluations_grouped_by_period(
+        self,
+        period: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """기간별 그룹화된 평가 조회 (기간>애널리스트>리포트)"""
+        from sqlalchemy import func
+        from app.models.analyst import Analyst
+        from app.models.report import Report
+        
+        # 기간 필터
+        query = self.db.query(Evaluation)
+        if period:
+            query = query.filter(Evaluation.evaluation_period == period)
+        
+        # 기간별 그룹화
+        periods = {}
+        evaluations = query.order_by(Evaluation.evaluation_period.desc(), Evaluation.created_at.desc()).all()
+        
+        for evaluation in evaluations:
+            period_key = evaluation.evaluation_period
+            
+            if period_key not in periods:
+                periods[period_key] = {
+                    "period": period_key,
+                    "analysts": {}
+                }
+            
+            # 애널리스트별 그룹화
+            analyst_id = str(evaluation.analyst_id)
+            if analyst_id not in periods[period_key]["analysts"]:
+                analyst = self.db.query(Analyst).filter(Analyst.id == evaluation.analyst_id).first()
+                periods[period_key]["analysts"][analyst_id] = {
+                    "analyst_id": analyst_id,
+                    "analyst_name": analyst.name if analyst else "Unknown",
+                    "analyst_firm": analyst.firm if analyst else "",
+                    "reports": {}
+                }
+            
+            # 리포트별 그룹화
+            if evaluation.report_id:
+                report_id = str(evaluation.report_id)
+                if report_id not in periods[period_key]["analysts"][analyst_id]["reports"]:
+                    report = self.db.query(Report).filter(Report.id == evaluation.report_id).first()
+                    pub_date_str = ""
+                    if report:
+                        if report.publication_date:
+                            if isinstance(report.publication_date, date):
+                                pub_date_str = report.publication_date.isoformat()
+                            else:
+                                pub_date_str = str(report.publication_date)
+                        elif report.created_at:
+                            pub_date_str = report.created_at.date().isoformat()
+                    
+                    periods[period_key]["analysts"][analyst_id]["reports"][report_id] = {
+                        "report_id": report_id,
+                        "report_title": report.title if report else "Unknown",
+                        "publication_date": pub_date_str,
+                        "evaluations": []
+                    }
+                
+                # 평가 추가
+                periods[period_key]["analysts"][analyst_id]["reports"][report_id]["evaluations"].append({
+                    "id": str(evaluation.id),
+                    "final_score": float(evaluation.final_score) if evaluation.final_score else None,
+                    "status": evaluation.status,
+                    "created_at": evaluation.created_at.isoformat(),
+                })
+        
+        # 딕셔너리를 리스트로 변환
+        periods_list = []
+        for period_key, period_data in periods.items():
+            analysts_list = []
+            for analyst_id, analyst_data in period_data["analysts"].items():
+                reports_list = []
+                for report_id, report_data in analyst_data["reports"].items():
+                    reports_list.append(report_data)
+                
+                analyst_data["reports"] = reports_list
+                analysts_list.append(analyst_data)
+            
+            periods_list.append({
+                "period": period_key,
+                "analysts": analysts_list,
+                "total_evaluations": sum(
+                    len(report["evaluations"])
+                    for analyst in analysts_list
+                    for report in analyst["reports"]
+                )
+            })
+        
+        return {
+            "periods": periods_list,
+            "total": len(evaluations)
+        }
+

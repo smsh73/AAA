@@ -2,7 +2,7 @@
 Report schemas
 """
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, date
 
@@ -47,6 +47,12 @@ class ReportListResponse(BaseModel):
     limit: int
 
 
+class ReportGroupedResponse(BaseModel):
+    """기간별 그룹화된 리포트 응답"""
+    periods: List[Dict[str, Any]]
+    total: int
+
+
 class ReportDetailResponse(ReportResponse):
     file_path: Optional[str] = None
     file_size: Optional[int] = None
@@ -54,4 +60,3 @@ class ReportDetailResponse(ReportResponse):
     status: str
     created_at: datetime
     updated_at: datetime
-

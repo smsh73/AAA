@@ -10,19 +10,37 @@ from uuid import UUID
 @celery_app.task(name="evaluate_report")
 def evaluate_report_task(evaluation_id: str, report_id: str):
     """리포트 평가 작업"""
-    from app.services.evaluation_service import EvaluationService
+    import asyncio
+    from app.services.ai_agents.evaluation_agent import EvaluationAgent
     
     db = SessionLocal()
     try:
         agent = EvaluationAgent(db)
-        # 동기 실행 (실제로는 async 래퍼 필요)
-        # result = await agent.evaluate_async(UUID(evaluation_id), UUID(report_id))
         
-        # 평가 완료 처리
-        service = EvaluationService(db)
-        # result = await service.complete_evaluation(UUID(evaluation_id))
+        # 비동기 함수 실행을 위한 이벤트 루프 생성
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(
+                agent.evaluate_async(UUID(evaluation_id), UUID(report_id))
+            )
+            return result
+        finally:
+            loop.close()
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"평가 작업 실패: {str(e)}")
         
-        return {"status": "completed", "evaluation_id": evaluation_id}
+        # 평가 상태를 실패로 업데이트
+        from app.models.evaluation import Evaluation
+        from app.models.enums import EvaluationStatus
+        evaluation = db.query(Evaluation).filter(Evaluation.id == UUID(evaluation_id)).first()
+        if evaluation:
+            evaluation.status = EvaluationStatus.FAILED.value
+            db.commit()
+        
+        raise
     finally:
         db.close()
 

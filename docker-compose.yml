@@ -30,6 +30,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+      DART_API_KEY: ${DART_API_KEY}
     ports:
       - "8000:8000"
     depends_on:

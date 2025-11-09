@@ -60,11 +60,38 @@ class AnalystService:
         return analyst
 
     def delete_analyst(self, analyst_id: UUID) -> bool:
-        """애널리스트 삭제"""
+        """애널리스트 삭제 - 관련 데이터 확인 후 삭제"""
         analyst = self.get_analyst(analyst_id)
         if not analyst:
             return False
         
+        # 관련 데이터 확인
+        from app.models.report import Report
+        from app.models.evaluation import Evaluation
+        from app.models.scorecard import Scorecard
+        from app.models.award import Award
+        from app.models.data_collection_log import DataCollectionLog
+        from app.models.collection_job import CollectionJob
+        
+        # 관련 리포트 확인
+        reports_count = self.db.query(Report).filter(Report.analyst_id == analyst_id).count()
+        evaluations_count = self.db.query(Evaluation).filter(Evaluation.analyst_id == analyst_id).count()
+        scorecards_count = self.db.query(Scorecard).filter(Scorecard.analyst_id == analyst_id).count()
+        awards_count = self.db.query(Award).filter(Award.analyst_id == analyst_id).count()
+        
+        # 관련 데이터가 있으면 삭제 불가
+        if reports_count > 0 or evaluations_count > 0 or scorecards_count > 0 or awards_count > 0:
+            raise ValueError(
+                f"애널리스트를 삭제할 수 없습니다. 관련 데이터가 있습니다: "
+                f"리포트 {reports_count}개, 평가 {evaluations_count}개, "
+                f"스코어카드 {scorecards_count}개, 어워드 {awards_count}개"
+            )
+        
+        # 데이터 수집 로그 및 작업 삭제 (CASCADE가 없을 수 있으므로)
+        self.db.query(DataCollectionLog).filter(DataCollectionLog.analyst_id == analyst_id).delete()
+        self.db.query(CollectionJob).filter(CollectionJob.analyst_id == analyst_id).delete()
+        
+        # 애널리스트 삭제
         self.db.delete(analyst)
         self.db.commit()
         return True

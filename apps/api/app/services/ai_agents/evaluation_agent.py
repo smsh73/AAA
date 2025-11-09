@@ -71,6 +71,17 @@ class EvaluationAgent:
         evaluation.status = EvaluationStatus.COMPLETED.value
         self.db.commit()
 
+        # 7. 평가 완료 후 스코어카드 자동 생성
+        from app.services.evaluation_service import EvaluationService
+        evaluation_service = EvaluationService(self.db)
+        try:
+            await evaluation_service.complete_evaluation(evaluation_id)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"스코어카드 생성 실패: {str(e)}")
+            # 스코어카드 생성 실패해도 평가는 완료된 것으로 처리
+
         return {
             "evaluation_id": evaluation_id,
             "scores": scores,
@@ -109,7 +120,7 @@ class EvaluationAgent:
         
         for prediction in predictions:
             try:
-                if prediction.prediction_type == "target_price":
+            if prediction.prediction_type == "target_price":
                     # 목표주가 데이터 수집 (KRX API)
                     actual_result = await self._collect_target_price_actual(
                         company, prediction
@@ -535,16 +546,83 @@ class EvaluationAgent:
             return 20.0
 
     def _calculate_sns_attention_score(self, analyst_id: UUID) -> float:
-        """SNS 주목도 점수 계산 (향후 구현)"""
-        # TODO: SNS API 연동하여 실제 데이터 수집
-        # 현재는 기본값 반환
-        return 50.0
+        """SNS 주목도 점수 계산 - 실제 데이터 수집 기반"""
+        from app.models.data_collection_log import DataCollectionLog
+        from datetime import datetime, timedelta
+        
+        # 최근 3개월 SNS 데이터 수집 로그 조회
+        three_months_ago = datetime.now() - timedelta(days=90)
+        
+        sns_logs = self.db.query(DataCollectionLog).filter(
+            DataCollectionLog.analyst_id == analyst_id,
+            DataCollectionLog.collection_type == "sns",
+            DataCollectionLog.status == "success",
+            DataCollectionLog.created_at >= three_months_ago
+        ).all()
+        
+        if not sns_logs:
+            return 0.0
+        
+        # 수집된 데이터에서 주목도 지표 추출
+        total_attention = 0.0
+        valid_logs = 0
+        
+        for log in sns_logs:
+            if log.collected_data:
+                # SNS 데이터에서 주목도 지표 추출 (예: 좋아요, 리트윗, 댓글 수 등)
+                attention_score = log.collected_data.get("attention_score", 0)
+                if attention_score > 0:
+                    total_attention += float(attention_score)
+                    valid_logs += 1
+        
+        if valid_logs == 0:
+            return 0.0
+        
+        # 평균 주목도 점수 계산 (0-100 스케일)
+        avg_attention = total_attention / valid_logs
+        
+        # 점수 정규화 (기준: 평균 주목도 100 = 100점)
+        # 실제 기준값은 데이터에 따라 조정 필요
+        normalized_score = min(100.0, (avg_attention / 100.0) * 100.0)
+        
+        return round(normalized_score, 2)
 
     def _calculate_media_frequency_score(self, analyst_id: UUID) -> float:
-        """미디어 언급 빈도 점수 계산 (향후 구현)"""
-        # TODO: 미디어 크롤링 또는 API 연동
-        # 현재는 기본값 반환
-        return 50.0
+        """미디어 언급 빈도 점수 계산 - 실제 데이터 수집 기반"""
+        from app.models.data_collection_log import DataCollectionLog
+        from datetime import datetime, timedelta
+        
+        # 최근 3개월 미디어 데이터 수집 로그 조회
+        three_months_ago = datetime.now() - timedelta(days=90)
+        
+        media_logs = self.db.query(DataCollectionLog).filter(
+            DataCollectionLog.analyst_id == analyst_id,
+            DataCollectionLog.collection_type == "media",
+            DataCollectionLog.status == "success",
+            DataCollectionLog.created_at >= three_months_ago
+        ).all()
+        
+        if not media_logs:
+            return 0.0
+        
+        # 언급 빈도 계산 (월 평균 기준)
+        total_mentions = len(media_logs)
+        months = 3.0
+        monthly_mentions = total_mentions / months
+        
+        # 기준: 월 10회 언급 = 100점
+        if monthly_mentions >= 10:
+            return 100.0
+        elif monthly_mentions >= 7:
+            return 80.0
+        elif monthly_mentions >= 5:
+            return 60.0
+        elif monthly_mentions >= 3:
+            return 40.0
+        elif monthly_mentions >= 1:
+            return 20.0
+        else:
+            return 10.0
 
     def _calculate_final_score(self, scores: Dict[str, float]) -> float:
         """가중치 적용한 최종 점수 계산"""

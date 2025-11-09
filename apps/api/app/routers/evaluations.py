@@ -11,6 +11,7 @@ from app.schemas.evaluation import (
     EvaluationStartRequest,
     EvaluationResponse,
     EvaluationListResponse,
+    EvaluationGroupedResponse,
     EvaluationDetailResponse,
     EvaluationScoreResponse
 )
@@ -85,6 +86,17 @@ async def get_evaluation_scores(
     ).all()
     
     return [EvaluationScoreResponse.model_validate(s) for s in scores]
+
+
+@router.get("/grouped", response_model=EvaluationGroupedResponse)
+async def get_evaluations_grouped(
+    period: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """기간별 그룹화된 평가 조회 (기간>애널리스트>리포트)"""
+    service = EvaluationService(db)
+    result = service.get_evaluations_grouped_by_period(period=period)
+    return EvaluationGroupedResponse(**result)
 
 
 @router.post("/start", response_model=EvaluationResponse)

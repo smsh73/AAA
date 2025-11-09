@@ -2,7 +2,7 @@
 Evaluation schemas
 """
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, date
 
@@ -22,6 +22,12 @@ class EvaluationListResponse(BaseModel):
     total: int
     skip: int
     limit: int
+
+
+class EvaluationGroupedResponse(BaseModel):
+    """기간별 그룹화된 평가 응답"""
+    periods: List[Dict[str, Any]]
+    total: int
 
 
 class EvaluationDetailResponse(BaseModel):
@@ -53,4 +59,3 @@ class EvaluationScoreResponse(BaseModel):
 
     class Config:
         from_attributes = True
-

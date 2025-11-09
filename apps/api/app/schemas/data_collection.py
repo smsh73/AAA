@@ -39,10 +39,14 @@ class DataCollectionLogResponse(BaseModel):
     company_id: Optional[UUID] = None
     collection_job_id: Optional[UUID] = None
     collection_type: str
-    status: str
+    prompt_template_id: Optional[str] = None
+    perplexity_request: Optional[Dict[str, Any]] = None
+    perplexity_response: Optional[Dict[str, Any]] = None
     collected_data: Optional[Dict[str, Any]] = None
+    status: str
     error_message: Optional[str] = None
     collection_time: Optional[float] = None
+    token_usage: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
 

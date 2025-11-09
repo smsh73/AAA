@@ -12,6 +12,7 @@ from app.schemas.report import (
     ReportUploadResponse,
     ExtractionStatusResponse,
     ReportListResponse,
+    ReportGroupedResponse,
     ReportDetailResponse
 )
 from app.services.report_service import ReportService
@@ -77,6 +78,18 @@ async def get_report(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     return ReportDetailResponse.model_validate(report)
+
+
+@router.get("/grouped", response_model=ReportGroupedResponse)
+async def get_reports_grouped(
+    period: Optional[str] = None,
+    analyst_id: Optional[UUID] = None,
+    db: Session = Depends(get_db)
+):
+    """기간별 그룹화된 리포트 조회 (기간>애널리스트>리포트)"""
+    service = ReportService(db)
+    result = service.get_reports_grouped_by_period(period=period, analyst_id=analyst_id)
+    return ReportGroupedResponse(**result)
 
 
 @router.get("/{report_id}/predictions")

@@ -16,7 +16,7 @@ interface CollectionJob {
   collection_job_id: string
   status: string
   progress: Record<string, { total: number; completed: number; failed: number }>
-  overall_progress: number
+  overall_progress: number | string
   started_at?: string
   completed_at?: string
   error_message?: string

@@ -248,4 +248,96 @@ class ReportService:
             }
             for p in predictions
         ]
+    
+    def get_reports_grouped_by_period(
+        self,
+        period: Optional[str] = None,
+        analyst_id: Optional[UUID] = None
+    ) -> Dict[str, Any]:
+        """기간별 그룹화된 리포트 조회 (기간>애널리스트>리포트)"""
+        from app.models.analyst import Analyst
+        from datetime import datetime
+        
+        # 리포트 조회
+        query = self.db.query(Report)
+        if analyst_id:
+            query = query.filter(Report.analyst_id == analyst_id)
+        
+        reports = query.order_by(Report.publication_date.desc()).all()
+        
+        # 기간별 그룹화 (발간일 기준으로 분기 계산)
+        periods = {}
+        
+        for report in reports:
+            # 발간일 기준으로 기간 계산
+            pub_date = report.publication_date
+            if not pub_date:
+                # 발간일이 없으면 생성일 기준으로 계산
+                pub_date = report.created_at.date() if report.created_at else datetime.now().date()
+            elif isinstance(pub_date, str):
+                pub_date = datetime.strptime(pub_date, "%Y-%m-%d").date()
+            
+            quarter = (pub_date.month - 1) // 3 + 1
+            period_key = f"{pub_date.year}-Q{quarter}"
+            
+            # 기간 필터
+            if period and period_key != period:
+                continue
+            
+            if period_key not in periods:
+                periods[period_key] = {
+                    "period": period_key,
+                    "analysts": {}
+                }
+            
+            # 애널리스트별 그룹화
+            if report.analyst_id:
+                analyst_id_str = str(report.analyst_id)
+                if analyst_id_str not in periods[period_key]["analysts"]:
+                    analyst = self.db.query(Analyst).filter(Analyst.id == report.analyst_id).first()
+                    periods[period_key]["analysts"][analyst_id_str] = {
+                        "analyst_id": analyst_id_str,
+                        "analyst_name": analyst.name if analyst else "Unknown",
+                        "analyst_firm": analyst.firm if analyst else "",
+                        "reports": []
+                    }
+                
+                # 리포트 추가
+                pub_date_str = ""
+                if report.publication_date:
+                    if isinstance(report.publication_date, date):
+                        pub_date_str = report.publication_date.isoformat()
+                    else:
+                        pub_date_str = str(report.publication_date)
+                elif report.created_at:
+                    pub_date_str = report.created_at.date().isoformat()
+                
+                periods[period_key]["analysts"][analyst_id_str]["reports"].append({
+                    "id": str(report.id),
+                    "title": report.title or "제목 없음",
+                    "publication_date": pub_date_str,
+                    "status": report.status or "pending",
+                    "company_id": str(report.company_id) if report.company_id else None,
+                })
+        
+        # 딕셔너리를 리스트로 변환
+        periods_list = []
+        for period_key, period_data in periods.items():
+            analysts_list = []
+            for analyst_id, analyst_data in period_data["analysts"].items():
+                analysts_list.append(analyst_data)
+            
+            periods_list.append({
+                "period": period_key,
+                "analysts": analysts_list,
+                "total_reports": sum(
+                    len(analyst["reports"])
+                    for analyst in analysts_list
+                )
+            })
+        
+        return {
+            "periods": periods_list,
+            "total": len(reports)
+        }
 
