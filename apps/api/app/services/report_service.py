@@ -226,6 +226,25 @@ class ReportService:
         """리포트 상세 조회"""
         return self.db.query(Report).filter(Report.id == report_id).first()
 
+    def get_extracted_company_info(self, report_id: UUID) -> Optional[Dict[str, Any]]:
+        """추출된 기업 정보 조회"""
+        from app.models.company import Company
+        
+        report = self.db.query(Report).filter(Report.id == report_id).first()
+        if not report or not report.company_id:
+            return None
+        
+        company = self.db.query(Company).filter(Company.id == report.company_id).first()
+        if not company:
+            return None
+        
+        return {
+            "company_id": str(company.id),
+            "company_name": company.name_kr,
+            "ticker": company.ticker,
+            "sector": company.sector
+        }
+
     def get_predictions(self, report_id: UUID):
         """예측 정보 조회"""
         from app.models.prediction import Prediction

@@ -90,19 +90,13 @@ class EvaluationAgent:
         }
 
     async def _extract_predictions(self, report_id: UUID) -> list:
-        """예측 정보 추출 (OpenAI)"""
-        # 리포트에서 예측 정보 추출
+        """예측 정보 추출 - 이미 ReportParsingAgent에서 추출된 Prediction 사용"""
+        # 리포트 파싱 시 이미 Prediction이 생성되었으므로 조회만 수행
         predictions = self.db.query(Prediction).filter(
             Prediction.report_id == report_id
         ).all()
         
-        if not predictions:
-            # OpenAI로 리포트 파싱하여 예측 추출
-            prompt = f"리포트 ID {report_id}에서 예측 정보를 추출하세요."
-            result = await self.llm_service.generate("openai", prompt)
-            # 결과 파싱하여 Prediction 생성
-            # (실제 구현 필요)
-        
+        # Prediction이 없으면 빈 리스트 반환 (리포트 파싱이 완료되지 않았을 수 있음)
         return predictions
 
     async def _collect_actual_data(self, predictions: list, report_id: UUID) -> list:

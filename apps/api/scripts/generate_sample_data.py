@@ -59,7 +59,7 @@ def create_sample_data():
         for name_kr, ticker in company_names:
             company = Company(
                 id=uuid4(),
-                ticker=ticker,
+                ticker=ticker,  # ticker는 nullable이지만 샘플 데이터에는 포함
                 name_kr=name_kr,
                 name_en=name_kr,
                 sector="IT",

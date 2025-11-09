@@ -10,10 +10,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.database import engine, Base
 from app.models import (
-    Analyst, Company, Market, Report, ExtractedText, ExtractedTable,
+    Analyst, Company, Market, Report, ReportSection, ExtractedText, ExtractedTable,
     ExtractedImage, Prediction, ActualResult, Evaluation, EvaluationScore,
-    Scorecard, Award, DataSource, DataCollectionLog, EvaluationReport,
-    PromptTemplate
+    Scorecard, Award, DataSource, DataCollectionLog, CollectionJob,
+    EvaluationReport, PromptTemplate
 )
 
 

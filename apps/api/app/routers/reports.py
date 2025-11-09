@@ -13,7 +13,8 @@ from app.schemas.report import (
     ExtractionStatusResponse,
     ReportListResponse,
     ReportGroupedResponse,
-    ReportDetailResponse
+    ReportDetailResponse,
+    CompanyExtractionResponse
 )
 from app.services.report_service import ReportService
 
@@ -73,11 +74,42 @@ async def get_report(
     db: Session = Depends(get_db)
 ):
     """리포트 상세 조회"""
+    from app.models.prediction import Prediction
+    from app.models.company import Company
+    
     service = ReportService(db)
     report = service.get_report(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    return ReportDetailResponse.model_validate(report)
+    
+    # 리포트 상세 정보 구성
+    report_dict = {
+        "id": report.id,
+        "analyst_id": report.analyst_id,
+        "company_id": report.company_id,
+        "title": report.title,
+        "publication_date": report.publication_date,
+        "report_type": report.report_type,
+        "file_path": report.file_path,
+        "file_size": report.file_size,
+        "total_pages": None,  # TODO: 페이지 수 계산
+        "status": report.status,
+        "created_at": report.created_at,
+        "updated_at": report.updated_at,
+    }
+    
+    # 추출된 기업명
+    if report.company_id:
+        company = db.query(Company).filter(Company.id == report.company_id).first()
+        report_dict["extracted_company_name"] = company.name_kr if company else None
+    else:
+        report_dict["extracted_company_name"] = None
+    
+    # 추출된 예측 정보 개수
+    predictions_count = db.query(Prediction).filter(Prediction.report_id == report_id).count()
+    report_dict["predictions_count"] = predictions_count
+    
+    return ReportDetailResponse(**report_dict)
 
 
 @router.get("/grouped", response_model=ReportGroupedResponse)
@@ -103,4 +135,29 @@ async def get_predictions(
     if predictions is None:
         raise HTTPException(status_code=404, detail="Report not found")
     return {"report_id": report_id, "predictions": predictions}
+
+
+@router.get("/{report_id}/extracted-company", response_model=CompanyExtractionResponse)
+async def get_extracted_company(
+    report_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """추출된 기업 정보 조회"""
+    service = ReportService(db)
+    company_info = service.get_extracted_company_info(report_id)
+    if not company_info:
+        return CompanyExtractionResponse(
+            company_id=None,
+            company_name=None,
+            ticker=None,
+            confidence=None,
+            message="기업 정보가 추출되지 않았습니다."
+        )
+    return CompanyExtractionResponse(
+        company_id=UUID(company_info["company_id"]),
+        company_name=company_info["company_name"],
+        ticker=company_info["ticker"],
+        confidence="high",
+        message="기업 정보가 자동으로 추출되었습니다."
+    )
 

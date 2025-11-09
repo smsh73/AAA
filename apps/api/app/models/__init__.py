@@ -4,7 +4,7 @@ Database models for Analyst Awards System
 from .analyst import Analyst
 from .company import Company
 from .market import Market
-from .report import Report, ReportSection
+from .report import Report, ReportSection, ExtractedText, ExtractedTable, ExtractedImage
 from .prediction import Prediction
 from .actual_result import ActualResult
 from .evaluation import Evaluation, EvaluationScore
@@ -22,6 +22,9 @@ __all__ = [
     "Market",
     "Report",
     "ReportSection",
+    "ExtractedText",
+    "ExtractedTable",
+    "ExtractedImage",
     "Prediction",
     "ActualResult",
     "Evaluation",

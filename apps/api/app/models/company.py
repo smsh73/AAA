@@ -11,7 +11,7 @@ class Company(BaseModel):
     """기업 모델"""
     __tablename__ = "companies"
 
-    ticker = Column(String(20), unique=True, nullable=False, index=True)
+    ticker = Column(String(20), unique=True, nullable=True, index=True)  # 자동 추출 시 임시 값 가능
     name_kr = Column(String(255), nullable=False)
     name_en = Column(String(255))
     sector = Column(String(100))

@@ -33,14 +33,28 @@ class ReportParsingAgent:
         # 1. 문서 추출
         extraction_result = await self.extraction_service.extract_async(report_id, file_path)
 
-        # 2. 섹션 추출 및 정규화
+        # 2. 기업명 자동 추출 (company_id가 없을 경우)
+        if not report.company_id:
+            extracted_company = await self._extract_company_name(extraction_result)
+            if extracted_company:
+                report.company_id = extracted_company
+                self.db.commit()
+
+        # 3. 섹션 추출 및 정규화
         sections = await self._extract_sections(extraction_result)
 
-        # 3. 임베딩 생성
+        # 4. 예측 정보 자동 추출
+        predictions = await self._extract_predictions(report_id, extraction_result, sections)
+
+        # 5. 임베딩 생성
         embeddings = await self._generate_embeddings(extraction_result)
 
-        # 4. 구조화된 데이터 저장
+        # 6. 구조화된 데이터 저장
         await self._save_extracted_data(report_id, extraction_result, sections, embeddings)
+
+        # 7. 리포트 파싱 완료 후 자동 데이터 수집 시작
+        if report.company_id:
+            await self._start_auto_data_collection(report_id, report.company_id)
 
         report.status = ReportStatus.COMPLETED.value
         self.db.commit()
@@ -48,6 +62,7 @@ class ReportParsingAgent:
         return {
             "report_id": report_id,
             "sections": sections,
+            "predictions": [{"id": str(p.id), "type": p.prediction_type} for p in predictions],
             "extraction_result": extraction_result,
         }
 
@@ -266,4 +281,259 @@ JSON 형식으로 반환:
             self.db.add(image)
 
         self.db.flush()
+
+    async def _extract_company_name(self, extraction_result: Dict[str, Any]) -> Optional[UUID]:
+        """PDF에서 기업명 추출 및 Company 레코드 생성/매칭"""
+        from app.models.company import Company
+        import re
+        
+        texts = extraction_result.get("texts", [])
+        if not texts:
+            return None
+        
+        # 텍스트 결합 (처음 5000자)
+        combined_text = "\n".join([t.get("content", "") for t in texts[:30]])
+        if len(combined_text) > 5000:
+            combined_text = combined_text[:5000]
+        
+        # LLM을 사용하여 기업명 추출
+        prompt = f"""다음 증권사 애널리스트 리포트에서 분석 대상 기업명을 추출하세요.
+
+리포트 내용:
+{combined_text}
+
+다음 정보를 JSON 형식으로 반환하세요:
+{{
+  "company_name_kr": "한국어 기업명",
+  "company_name_en": "영어 기업명 (있는 경우)",
+  "ticker": "종목코드 (있는 경우)",
+  "confidence": "high|medium|low"
+}}
+
+중요:
+- 기업명은 정확하게 추출해야 합니다
+- 종목코드는 6자리 숫자 형식입니다 (예: 005930)
+- 기업명이 명확하지 않으면 confidence를 low로 설정하세요
+- 반드시 유효한 JSON만 반환하세요"""
+        
+        try:
+            result = await self.llm_service.generate("openai", prompt, {
+                "model": "gpt-4",
+                "max_tokens": 500,
+                "temperature": 0.2
+            })
+            
+            content = result.get("content", "")
+            
+            # JSON 추출
+            import json
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                json_str = json_match.group(0)
+                company_data = json.loads(json_str)
+                
+                company_name_kr = company_data.get("company_name_kr", "").strip()
+                ticker = company_data.get("ticker", "").strip()
+                confidence = company_data.get("confidence", "low")
+                
+                if not company_name_kr or confidence == "low":
+                    return None
+                
+                # Company 테이블에서 매칭 또는 생성
+                company = None
+                
+                # 종목코드로 먼저 검색
+                if ticker:
+                    company = self.db.query(Company).filter(Company.ticker == ticker).first()
+                
+                # 기업명으로 검색
+                if not company:
+                    company = self.db.query(Company).filter(
+                        Company.name_kr.ilike(f"%{company_name_kr}%")
+                    ).first()
+                
+                # 없으면 생성
+                if not company:
+                    # ticker가 없으면 임시 ticker 생성 (나중에 수정 가능)
+                    final_ticker = ticker
+                    if not final_ticker:
+                        # 기업명의 해시를 사용하여 임시 ticker 생성
+                        import hashlib
+                        ticker_hash = hashlib.md5(company_name_kr.encode('utf-8')).hexdigest()[:6]
+                        final_ticker = f"TEMP{ticker_hash}"
+                    
+                    company = Company(
+                        ticker=final_ticker,
+                        name_kr=company_name_kr,
+                        name_en=company_data.get("company_name_en", "").strip() or None,
+                    )
+                    self.db.add(company)
+                    self.db.flush()
+                
+                return company.id
+                
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"기업명 추출 실패: {str(e)}")
+        
+        return None
+
+    async def _extract_predictions(
+        self,
+        report_id: UUID,
+        extraction_result: Dict[str, Any],
+        sections: list
+    ) -> list:
+        """리포트에서 예측 정보 추출 및 Prediction 레코드 생성"""
+        from app.models.prediction import Prediction
+        from app.models.report import Report
+        from decimal import Decimal
+        import re
+        import json
+        
+        # 이미 추출된 예측이 있으면 반환
+        existing_predictions = self.db.query(Prediction).filter(
+            Prediction.report_id == report_id
+        ).all()
+        if existing_predictions:
+            return existing_predictions
+        
+        report = self.db.query(Report).filter(Report.id == report_id).first()
+        if not report:
+            return []
+        
+        texts = extraction_result.get("texts", [])
+        
+        # 텍스트 결합 (예측 관련 섹션 우선)
+        forecast_sections = [s for s in sections if s.get("section_type") in ["forecast", "target_price", "recommendation"]]
+        if forecast_sections:
+            combined_text = "\n".join([s.get("content", "") for s in forecast_sections[:5]])
+        else:
+            combined_text = "\n".join([t.get("content", "") for t in texts[:50]])
+        
+        if len(combined_text) > 8000:
+            combined_text = combined_text[:8000]
+        
+        # LLM을 사용하여 예측 정보 추출
+        prompt = f"""다음 증권사 애널리스트 리포트에서 예측 정보를 추출하세요.
+
+리포트 내용:
+{combined_text}
+
+다음 예측 타입을 찾아서 JSON 형식으로 반환하세요:
+1. target_price: 목표주가 (예: "목표주가 120,000원", "TP 120000원")
+2. revenue: 매출액 예측 (예: "매출액 1조 2,000억원")
+3. operating_profit: 영업이익 예측 (예: "영업이익 500억원")
+4. net_profit: 당기순이익 예측 (예: "순이익 300억원")
+
+각 예측에 대해 다음 정보를 추출:
+- prediction_type: 예측 타입 (target_price, revenue, operating_profit, net_profit)
+- predicted_value: 예측 값 (숫자만)
+- unit: 단위 (원, 억원, 조원, % 등)
+- period: 예측 기간 (2025Q1, 2025-06, 2025년 등)
+- reasoning: 예측 근거 (간단히)
+
+JSON 형식으로 반환:
+{{
+  "predictions": [
+    {{
+      "prediction_type": "target_price",
+      "predicted_value": 120000,
+      "unit": "원",
+      "period": "2025-06",
+      "reasoning": "예측 근거..."
+    }},
+    ...
+  ]
+}}
+
+반드시 유효한 JSON만 반환하세요."""
+        
+        predictions = []
+        
+        try:
+            result = await self.llm_service.generate("openai", prompt, {
+                "model": "gpt-4",
+                "max_tokens": 2000,
+                "temperature": 0.3
+            })
+            
+            content = result.get("content", "")
+            
+            # JSON 추출
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                json_str = json_match.group(0)
+                parsed = json.loads(json_str)
+                prediction_list = parsed.get("predictions", [])
+                
+                for pred_data in prediction_list:
+                    try:
+                        prediction = Prediction(
+                            report_id=report_id,
+                            company_id=report.company_id,
+                            prediction_type=pred_data.get("prediction_type"),
+                            predicted_value=Decimal(str(pred_data.get("predicted_value", 0))),
+                            unit=pred_data.get("unit"),
+                            period=pred_data.get("period"),
+                            reasoning=pred_data.get("reasoning"),
+                            confidence="high" if pred_data.get("predicted_value") else "medium"
+                        )
+                        self.db.add(prediction)
+                        predictions.append(prediction)
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"예측 정보 저장 실패: {str(e)}")
+                        continue
+                
+                self.db.commit()
+                
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"예측 정보 추출 실패: {str(e)}")
+        
+        return predictions
+
+    async def _start_auto_data_collection(self, report_id: UUID, company_id: UUID):
+        """리포트 파싱 완료 후 자동 데이터 수집 시작"""
+        from app.models.report import Report
+        from app.services.data_collection_service import DataCollectionService
+        from datetime import date, timedelta
+        
+        try:
+            report = self.db.query(Report).filter(Report.id == report_id).first()
+            if not report or not report.analyst_id:
+                return
+            
+            # 데이터 수집 서비스 생성
+            collection_service = DataCollectionService(self.db)
+            
+            # 리포트 발간일 기준으로 수집 기간 설정 (최근 3개월)
+            end_date = date.today()
+            start_date = end_date - timedelta(days=90)
+            
+            # 수집 타입: 목표주가, 실적, SNS, 언론
+            collection_types = ["target_price", "performance", "sns", "media"]
+            
+            # 비동기로 데이터 수집 시작 (에러 발생해도 리포트 파싱은 완료된 것으로 처리)
+            try:
+                await collection_service.start_collection(
+                    analyst_id=report.analyst_id,
+                    collection_types=collection_types,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"자동 데이터 수집 시작 실패: {str(e)}")
+                # 데이터 수집 실패해도 리포트 파싱은 완료된 것으로 처리
+                
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"자동 데이터 수집 처리 실패: {str(e)}")
 

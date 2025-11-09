@@ -17,6 +17,8 @@ interface ReportDetail {
   file_size?: number
   total_pages?: number
   created_at: string
+  extracted_company_name?: string
+  predictions_count?: number
 }
 
 interface Prediction {
@@ -128,6 +130,22 @@ export default function ReportDetailPage() {
             <div>
               <strong>발간일:</strong> {new Date(report.publication_date).toLocaleDateString('ko-KR')}
             </div>
+            {report.extracted_company_name && (
+              <div>
+                <strong>추출된 기업:</strong>{' '}
+                <span style={{ color: 'var(--fnguide-primary)' }}>
+                  {report.extracted_company_name} (자동 추출)
+                </span>
+              </div>
+            )}
+            {report.predictions_count !== undefined && (
+              <div>
+                <strong>추출된 예측:</strong>{' '}
+                <span style={{ color: 'var(--fnguide-primary)' }}>
+                  {report.predictions_count}개
+                </span>
+              </div>
+            )}
             {report.file_size && (
               <div>
                 <strong>파일 크기:</strong> {(report.file_size / 1024 / 1024).toFixed(2)} MB

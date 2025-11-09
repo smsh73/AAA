@@ -60,3 +60,14 @@ class ReportDetailResponse(ReportResponse):
     status: str
     created_at: datetime
     updated_at: datetime
+    extracted_company_name: Optional[str] = None  # 자동 추출된 기업명
+    predictions_count: Optional[int] = None  # 추출된 예측 정보 개수
+
+
+class CompanyExtractionResponse(BaseModel):
+    """기업명 추출 결과"""
+    company_id: Optional[UUID] = None
+    company_name: Optional[str] = None
+    ticker: Optional[str] = None
+    confidence: Optional[str] = None  # high, medium, low
+    message: str

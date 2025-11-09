@@ -143,13 +143,16 @@ export default function ReportUploadPage() {
             className="fnguide-form-input"
             disabled={uploading || loadingOptions}
           >
-            <option value="">선택 안 함</option>
+            <option value="">선택 안 함 (자동 추출 시도)</option>
             {companies.map((company) => (
               <option key={company.id} value={company.id}>
                 {company.name} {company.ticker && `(${company.ticker})`}
               </option>
             ))}
           </select>
+          <p style={{ marginTop: '8px', fontSize: '12px', color: 'var(--fnguide-gray-500)' }}>
+            기업을 선택하지 않으면 PDF 내용에서 자동으로 기업명을 추출합니다.
+          </p>
         </div>
 
         {uploading && (
