@@ -16,7 +16,15 @@ class AwardAgent:
 
     def __init__(self, db: Session):
         self.db = db
-        self.llm_service = LLMService()
+        # LLMService는 지연 초기화 (API 키가 없어도 에러 방지)
+        self._llm_service = None
+    
+    @property
+    def llm_service(self):
+        """LLMService 지연 초기화"""
+        if self._llm_service is None:
+            self._llm_service = LLMService()
+        return self._llm_service
 
     async def select_awards(
         self,

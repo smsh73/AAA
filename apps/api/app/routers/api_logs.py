@@ -28,14 +28,16 @@ async def get_api_logs(
     user_id: Optional[str] = Query(None),
     client_ip: Optional[str] = Query(None),
     error_only: bool = Query(False),
-    start_date: Optional[datetime] = Query(None),
-    end_date: Optional[datetime] = Query(None),
+    start_date: Optional[str] = Query(None, description="시작 날짜 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM:SS)"),
+    end_date: Optional[str] = Query(None, description="종료 날짜 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM:SS)"),
     db: Session = Depends(get_db)
 ):
-    """API 로그 조회"""
+    """API 로그 조회 (성능 최적화)"""
+    from datetime import datetime as dt
+    
     query = db.query(ApiLog)
     
-    # 필터링
+    # 필터링 (인덱스 활용)
     if method:
         query = query.filter(ApiLog.method == method.upper())
     if path:
@@ -48,13 +50,33 @@ async def get_api_logs(
         query = query.filter(ApiLog.client_ip == client_ip)
     if error_only:
         query = query.filter(ApiLog.status_code >= 400)
-    if start_date:
-        query = query.filter(ApiLog.created_at >= start_date)
-    if end_date:
-        query = query.filter(ApiLog.created_at <= end_date)
     
-    # 정렬 및 페이징
+    # 날짜 필터링 (파싱 개선)
+    if start_date:
+        try:
+            if 'T' in start_date:
+                parsed_start = dt.fromisoformat(start_date.replace('Z', '+00:00'))
+            else:
+                parsed_start = dt.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(ApiLog.created_at >= parsed_start)
+        except (ValueError, AttributeError):
+            pass
+    
+    if end_date:
+        try:
+            if 'T' in end_date:
+                parsed_end = dt.fromisoformat(end_date.replace('Z', '+00:00'))
+            else:
+                parsed_end = dt.strptime(end_date, "%Y-%m-%d")
+                parsed_end = parsed_end.replace(hour=23, minute=59, second=59)
+            query = query.filter(ApiLog.created_at <= parsed_end)
+        except (ValueError, AttributeError):
+            pass
+    
+    # 정렬 및 페이징 (인덱스 활용 - created_at 인덱스 사용)
+    # count 쿼리 최적화: 필터 적용 후 count
     total = query.count()
+    # 데이터 조회: 인덱스 활용하여 빠르게 조회
     logs = query.order_by(ApiLog.created_at.desc()).offset(skip).limit(limit).all()
     
     return {
@@ -139,12 +161,14 @@ async def download_logs_json(
     status_code: Optional[int] = Query(None),
     user_id: Optional[str] = Query(None),
     error_only: bool = Query(False),
-    start_date: Optional[datetime] = Query(None),
-    end_date: Optional[datetime] = Query(None),
+    start_date: Optional[str] = Query(None, description="시작 날짜 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM:SS)"),
+    end_date: Optional[str] = Query(None, description="종료 날짜 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM:SS)"),
     limit: int = Query(10000, ge=1, le=50000),
     db: Session = Depends(get_db)
 ):
     """로그를 JSON 형식으로 다운로드"""
+    from datetime import datetime as dt
+    
     query = db.query(ApiLog)
     
     # 필터링
@@ -158,10 +182,28 @@ async def download_logs_json(
         query = query.filter(ApiLog.user_id == user_id)
     if error_only:
         query = query.filter(ApiLog.status_code >= 400)
+    
+    # 날짜 필터링 (파싱 개선)
     if start_date:
-        query = query.filter(ApiLog.created_at >= start_date)
+        try:
+            if 'T' in start_date:
+                parsed_start = dt.fromisoformat(start_date.replace('Z', '+00:00'))
+            else:
+                parsed_start = dt.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(ApiLog.created_at >= parsed_start)
+        except (ValueError, AttributeError):
+            pass
+    
     if end_date:
-        query = query.filter(ApiLog.created_at <= end_date)
+        try:
+            if 'T' in end_date:
+                parsed_end = dt.fromisoformat(end_date.replace('Z', '+00:00'))
+            else:
+                parsed_end = dt.strptime(end_date, "%Y-%m-%d")
+                parsed_end = parsed_end.replace(hour=23, minute=59, second=59)
+            query = query.filter(ApiLog.created_at <= parsed_end)
+        except (ValueError, AttributeError):
+            pass
     
     logs = query.order_by(ApiLog.created_at.desc()).limit(limit).all()
     
@@ -221,12 +263,14 @@ async def download_logs_csv(
     status_code: Optional[int] = Query(None),
     user_id: Optional[str] = Query(None),
     error_only: bool = Query(False),
-    start_date: Optional[datetime] = Query(None),
-    end_date: Optional[datetime] = Query(None),
+    start_date: Optional[str] = Query(None, description="시작 날짜 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM:SS)"),
+    end_date: Optional[str] = Query(None, description="종료 날짜 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM:SS)"),
     limit: int = Query(10000, ge=1, le=50000),
     db: Session = Depends(get_db)
 ):
     """로그를 CSV 형식으로 다운로드"""
+    from datetime import datetime as dt
+    
     query = db.query(ApiLog)
     
     # 필터링
@@ -240,10 +284,28 @@ async def download_logs_csv(
         query = query.filter(ApiLog.user_id == user_id)
     if error_only:
         query = query.filter(ApiLog.status_code >= 400)
+    
+    # 날짜 필터링 (파싱 개선)
     if start_date:
-        query = query.filter(ApiLog.created_at >= start_date)
+        try:
+            if 'T' in start_date:
+                parsed_start = dt.fromisoformat(start_date.replace('Z', '+00:00'))
+            else:
+                parsed_start = dt.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(ApiLog.created_at >= parsed_start)
+        except (ValueError, AttributeError):
+            pass
+    
     if end_date:
-        query = query.filter(ApiLog.created_at <= end_date)
+        try:
+            if 'T' in end_date:
+                parsed_end = dt.fromisoformat(end_date.replace('Z', '+00:00'))
+            else:
+                parsed_end = dt.strptime(end_date, "%Y-%m-%d")
+                parsed_end = parsed_end.replace(hour=23, minute=59, second=59)
+            query = query.filter(ApiLog.created_at <= parsed_end)
+        except (ValueError, AttributeError):
+            pass
     
     logs = query.order_by(ApiLog.created_at.desc()).limit(limit).all()
     
@@ -293,53 +355,100 @@ async def download_logs_csv(
 
 @router.get("/logs/stats")
 async def get_log_stats(
-    start_date: Optional[datetime] = Query(None),
-    end_date: Optional[datetime] = Query(None),
+    start_date: Optional[str] = Query(None, description="시작 날짜 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM:SS)"),
+    end_date: Optional[str] = Query(None, description="종료 날짜 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:MM:SS)"),
     db: Session = Depends(get_db)
 ):
     """로그 통계 조회"""
+    from datetime import datetime as dt
+    
     query = db.query(ApiLog)
     
-    if start_date:
-        query = query.filter(ApiLog.created_at >= start_date)
-    if end_date:
-        query = query.filter(ApiLog.created_at <= end_date)
+    # 날짜 파라미터 파싱
+    parsed_start_date = None
+    parsed_end_date = None
     
+    if start_date:
+        try:
+            # ISO 형식 또는 날짜 형식 파싱
+            if 'T' in start_date:
+                parsed_start_date = dt.fromisoformat(start_date.replace('Z', '+00:00'))
+            else:
+                parsed_start_date = dt.strptime(start_date, "%Y-%m-%d")
+        except (ValueError, AttributeError):
+            # 파싱 실패 시 무시
+            pass
+    
+    if end_date:
+        try:
+            if 'T' in end_date:
+                parsed_end_date = dt.fromisoformat(end_date.replace('Z', '+00:00'))
+            else:
+                parsed_end_date = dt.strptime(end_date, "%Y-%m-%d")
+                # 날짜만 제공된 경우 하루 끝 시간으로 설정
+                parsed_end_date = parsed_end_date.replace(hour=23, minute=59, second=59)
+        except (ValueError, AttributeError):
+            pass
+    
+    if parsed_start_date:
+        query = query.filter(ApiLog.created_at >= parsed_start_date)
+    if parsed_end_date:
+        query = query.filter(ApiLog.created_at <= parsed_end_date)
+    
+    # 통계 계산 (쿼리 최적화)
     total = query.count()
     errors = query.filter(ApiLog.status_code >= 400).count()
-    success = query.filter(ApiLog.status_code < 400).count()
+    success = total - errors
     
-    # 평균 응답 시간
-    avg_time = db.query(
-        func.avg(ApiLog.request_time)
-    ).filter(
+    # 평균 응답 시간 (필터 적용)
+    avg_time_query = db.query(func.avg(ApiLog.request_time)).filter(
         ApiLog.request_time.isnot(None)
-    ).scalar() or 0.0
+    )
+    if parsed_start_date:
+        avg_time_query = avg_time_query.filter(ApiLog.created_at >= parsed_start_date)
+    if parsed_end_date:
+        avg_time_query = avg_time_query.filter(ApiLog.created_at <= parsed_end_date)
+    avg_time = avg_time_query.scalar() or 0.0
     
-    # 상태 코드별 통계
-    status_stats = db.query(
+    # 상태 코드별 통계 (필터 적용)
+    status_query = db.query(
         ApiLog.status_code,
         func.count(ApiLog.id).label('count')
-    ).group_by(ApiLog.status_code).all()
+    )
+    if parsed_start_date:
+        status_query = status_query.filter(ApiLog.created_at >= parsed_start_date)
+    if parsed_end_date:
+        status_query = status_query.filter(ApiLog.created_at <= parsed_end_date)
+    status_stats = status_query.group_by(ApiLog.status_code).all()
     
-    # 메서드별 통계
-    method_stats = db.query(
+    # 메서드별 통계 (필터 적용)
+    method_query = db.query(
         ApiLog.method,
         func.count(ApiLog.id).label('count')
-    ).group_by(ApiLog.method).all()
+    )
+    if parsed_start_date:
+        method_query = method_query.filter(ApiLog.created_at >= parsed_start_date)
+    if parsed_end_date:
+        method_query = method_query.filter(ApiLog.created_at <= parsed_end_date)
+    method_stats = method_query.group_by(ApiLog.method).all()
     
-    # 경로별 통계 (상위 10개)
-    path_stats = db.query(
+    # 경로별 통계 (상위 10개, 필터 적용)
+    path_query = db.query(
         ApiLog.path,
         func.count(ApiLog.id).label('count')
-    ).group_by(ApiLog.path).order_by(func.count(ApiLog.id).desc()).limit(10).all()
+    )
+    if parsed_start_date:
+        path_query = path_query.filter(ApiLog.created_at >= parsed_start_date)
+    if parsed_end_date:
+        path_query = path_query.filter(ApiLog.created_at <= parsed_end_date)
+    path_stats = path_query.group_by(ApiLog.path).order_by(func.count(ApiLog.id).desc()).limit(10).all()
     
     return {
         "total": total,
         "success": success,
         "errors": errors,
-        "error_rate": (errors / total * 100) if total > 0 else 0.0,
-        "avg_request_time": float(avg_time),
+        "error_rate": round((errors / total * 100) if total > 0 else 0.0, 2),
+        "avg_request_time": round(float(avg_time), 4),
         "status_code_stats": [{"status_code": s[0], "count": s[1]} for s in status_stats],
         "method_stats": [{"method": m[0], "count": m[1]} for m in method_stats],
         "top_paths": [{"path": p[0], "count": p[1]} for p in path_stats],
