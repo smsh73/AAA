@@ -11,7 +11,9 @@ from app.schemas.data_collection import (
     DataCollectionStartRequest,
     DataCollectionStartResponse,
     DataCollectionStatusResponse,
-    DataCollectionLogResponse
+    DataCollectionLogResponse,
+    BulkCollectionStartRequest,
+    BulkCollectionStartResponse
 )
 from app.models.data_collection_log import DataCollectionLog
 from app.services.data_collection_service import DataCollectionService
@@ -137,4 +139,80 @@ async def get_realtime_logs(
     
     logs = query.order_by(DataCollectionLog.created_at.asc()).limit(100).all()
     return logs
+
+
+@router.post("/bulk-start", response_model=BulkCollectionStartResponse)
+async def start_bulk_collection(
+    request: BulkCollectionStartRequest,
+    db: Session = Depends(get_db)
+):
+    """전체 일괄 수집 시작 (모든 애널리스트 또는 지정된 애널리스트들)"""
+    from app.tasks.data_collection_tasks import start_comprehensive_collection_task
+    from app.models.collection_job import CollectionJob
+    from app.models.analyst import Analyst
+    from datetime import datetime, timedelta
+    
+    # 애널리스트 목록 조회
+    if request.analyst_ids:
+        analysts = db.query(Analyst).filter(Analyst.id.in_(request.analyst_ids)).all()
+    else:
+        # 전체 애널리스트
+        analysts = db.query(Analyst).all()
+    
+    if not analysts:
+        raise HTTPException(status_code=404, detail="No analysts found")
+    
+    total_analysts = len(analysts)
+    started_jobs = 0
+    failed_analysts = []
+    job_ids = []
+    
+    # 각 애널리스트에 대해 수집 작업 생성
+    for analyst in analysts:
+        try:
+            job = CollectionJob(
+                analyst_id=analyst.id,
+                collection_types=request.collection_types,
+                start_date=datetime.combine(request.start_date, datetime.min.time()),
+                end_date=datetime.combine(request.end_date, datetime.max.time()),
+                status="pending",
+                progress={ct: {"total": 0, "completed": 0, "failed": 0} for ct in request.collection_types},
+                overall_progress="0.0"
+            )
+            db.add(job)
+            db.flush()
+            
+            # 예상 완료 시간 계산
+            estimated_minutes = len(request.collection_types) * 10
+            estimated_completion = datetime.now() + timedelta(minutes=estimated_minutes)
+            job.estimated_completion_time = estimated_completion
+            db.flush()
+            
+            # 통합 수집 태스크 시작
+            start_comprehensive_collection_task.delay(str(job.id))
+            
+            job_ids.append(job.id)
+            started_jobs += 1
+            
+        except Exception as e:
+            failed_analysts.append({
+                "analyst_id": str(analyst.id),
+                "analyst_name": analyst.name,
+                "error": str(e)
+            })
+            continue
+    
+    db.commit()
+    
+    # 전체 예상 완료 시간 (가장 긴 시간)
+    estimated_minutes = len(request.collection_types) * 10 * total_analysts
+    estimated_completion = datetime.now() + timedelta(minutes=estimated_minutes)
+    
+    return BulkCollectionStartResponse(
+        total_analysts=total_analysts,
+        started_jobs=started_jobs,
+        failed_analysts=failed_analysts,
+        job_ids=job_ids,
+        estimated_completion_time=estimated_completion
+    )
 

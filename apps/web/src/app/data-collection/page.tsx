@@ -51,6 +51,8 @@ export default function DataCollectionPage() {
   const [submitting, setSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [showRealtimeLogs, setShowRealtimeLogs] = useState(false)
+  const [showBulkForm, setShowBulkForm] = useState(false)
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
 
   useEffect(() => {
     loadAnalysts()
@@ -170,6 +172,52 @@ export default function DataCollectionPage() {
     }
   }
 
+  const handleStartBulkCollection = async () => {
+    if (collectionTypes.length === 0 || !startDate || !endDate) {
+      alert('수집 타입, 시작일, 종료일을 모두 입력해주세요.')
+      return
+    }
+
+    if (!confirm(`전체 애널리스트(${analysts.length}명)에 대해 데이터 수집을 시작하시겠습니까? 이 작업은 시간이 오래 걸릴 수 있습니다.`)) {
+      return
+    }
+
+    setBulkSubmitting(true)
+    try {
+      const res = await api.post('/api/data-collection/bulk-start', {
+        collection_types: collectionTypes,
+        start_date: startDate,
+        end_date: endDate,
+        analyst_ids: null, // 전체 애널리스트
+      })
+
+      alert(
+        `전체 일괄 수집이 시작되었습니다.\n` +
+        `총 애널리스트: ${res.data.total_analysts}명\n` +
+        `시작된 작업: ${res.data.started_jobs}개\n` +
+        `실패: ${res.data.failed_analysts.length}개`
+      )
+      
+      if (res.data.failed_analysts.length > 0) {
+        console.error('실패한 애널리스트:', res.data.failed_analysts)
+      }
+      
+      setShowBulkForm(false)
+      setCollectionTypes([])
+      setStartDate('')
+      setEndDate('')
+      
+      // 로그 새로고침
+      setTimeout(() => {
+        loadLogs()
+      }, 2000)
+    } catch (err: any) {
+      alert(`전체 일괄 수집 시작 실패: ${err.response?.data?.detail || err.message}`)
+    } finally {
+      setBulkSubmitting(false)
+    }
+  }
+
   const handleCollectionTypeChange = (type: string, checked: boolean) => {
     if (checked) {
       setCollectionTypes([...collectionTypes, type])
@@ -224,12 +272,26 @@ export default function DataCollectionPage() {
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>새 데이터 수집 작업</h2>
-          <Button
-            variant={showForm ? 'secondary' : 'primary'}
-            onClick={() => setShowForm(!showForm)}
-          >
-            {showForm ? '닫기' : '수집 시작'}
-          </Button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              variant={showBulkForm ? 'secondary' : 'primary'}
+              onClick={() => {
+                setShowBulkForm(!showBulkForm)
+                setShowForm(false)
+              }}
+            >
+              {showBulkForm ? '닫기' : '전체 일괄 수집'}
+            </Button>
+            <Button
+              variant={showForm ? 'secondary' : 'primary'}
+              onClick={() => {
+                setShowForm(!showForm)
+                setShowBulkForm(false)
+              }}
+            >
+              {showForm ? '닫기' : '개별 수집'}
+            </Button>
+          </div>
         </div>
 
         {showForm && (
@@ -320,6 +382,82 @@ export default function DataCollectionPage() {
               style={{ alignSelf: 'flex-start' }}
             >
               {submitting ? '시작 중...' : '수집 시작'}
+            </Button>
+          </div>
+        )}
+
+        {/* 전체 일괄 수집 폼 */}
+        {showBulkForm && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '16px', borderTop: '1px solid var(--fnguide-gray-200)', marginTop: '16px' }}>
+            <div style={{ padding: '12px', backgroundColor: 'var(--fnguide-gray-50)', borderRadius: '4px', marginBottom: '8px' }}>
+              <strong>전체 일괄 수집</strong>
+              <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: 'var(--fnguide-gray-600)' }}>
+                등록된 모든 애널리스트({analysts.length}명)에 대해 데이터 수집을 시작합니다. 이 작업은 시간이 오래 걸릴 수 있습니다.
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                수집 타입 선택 *
+              </label>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                {Object.entries(collectionTypeLabels).map(([type, label]) => (
+                  <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={collectionTypes.includes(type)}
+                      onChange={(e) => handleCollectionTypeChange(type, e.target.checked)}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                  시작일 *
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--fnguide-gray-300)',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                  종료일 *
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--fnguide-gray-300)',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              onClick={handleStartBulkCollection}
+              disabled={bulkSubmitting}
+              style={{ alignSelf: 'flex-start', backgroundColor: bulkSubmitting ? 'var(--fnguide-gray-400)' : '#dc2626' }}
+            >
+              {bulkSubmitting ? '전체 수집 시작 중...' : `전체 일괄 수집 시작 (${analysts.length}명)`}
             </Button>
           </div>
         )}

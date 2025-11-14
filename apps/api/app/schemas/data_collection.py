@@ -54,3 +54,20 @@ class DataCollectionLogResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class BulkCollectionStartRequest(BaseModel):
+    """전체 일괄 수집 요청"""
+    collection_types: List[str]  # target_price, performance, sns, media
+    start_date: date
+    end_date: date
+    analyst_ids: Optional[List[UUID]] = None  # None이면 전체 애널리스트
+
+
+class BulkCollectionStartResponse(BaseModel):
+    """전체 일괄 수집 응답"""
+    total_analysts: int
+    started_jobs: int
+    failed_analysts: List[Dict[str, Any]]
+    job_ids: List[UUID]
+    estimated_completion_time: Optional[datetime] = None
+
