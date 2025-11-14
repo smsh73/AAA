@@ -114,7 +114,7 @@ class EvaluationAgent:
         
         for prediction in predictions:
             try:
-            if prediction.prediction_type == "target_price":
+                if prediction.prediction_type == "target_price":
                     # 목표주가 데이터 수집 (KRX API)
                     actual_result = await self._collect_target_price_actual(
                         company, prediction

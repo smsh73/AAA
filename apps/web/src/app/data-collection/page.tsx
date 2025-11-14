@@ -31,6 +31,7 @@ interface CollectionLog {
   status: string
   collected_data?: any
   error_message?: string
+  log_message?: string
   collection_time?: number
   created_at: string
   updated_at: string
@@ -44,9 +45,12 @@ export default function DataCollectionPage() {
   const [endDate, setEndDate] = useState<string>('')
   const [activeJobs, setActiveJobs] = useState<CollectionJob[]>([])
   const [logs, setLogs] = useState<CollectionLog[]>([])
+  const [realtimeLogs, setRealtimeLogs] = useState<CollectionLog[]>([])
+  const [selectedJobId, setSelectedJobId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [showRealtimeLogs, setShowRealtimeLogs] = useState(false)
 
   useEffect(() => {
     loadAnalysts()
@@ -54,9 +58,12 @@ export default function DataCollectionPage() {
     // 활성 작업 상태 주기적으로 업데이트 (30초마다)
     const interval = setInterval(() => {
       loadActiveJobs()
-    }, 30000)
+      if (selectedJobId && showRealtimeLogs) {
+        loadRealtimeLogs()
+      }
+    }, 3000) // 3초마다 업데이트
     return () => clearInterval(interval)
-  }, [])
+  }, [selectedJobId, showRealtimeLogs])
 
   const loadAnalysts = async () => {
     try {
@@ -106,6 +113,28 @@ export default function DataCollectionPage() {
     } catch (err) {
       console.error('로그 로드 실패:', err)
     }
+  }
+
+  const loadRealtimeLogs = async () => {
+    if (!selectedJobId) return
+    
+    try {
+      const lastLogId = realtimeLogs.length > 0 ? realtimeLogs[realtimeLogs.length - 1].id : undefined
+      const url = `/api/data-collection/logs/realtime?collection_job_id=${selectedJobId}${lastLogId ? `&last_log_id=${lastLogId}` : ''}`
+      const res = await api.get(url)
+      if (res.data && res.data.length > 0) {
+        setRealtimeLogs([...realtimeLogs, ...res.data])
+      }
+    } catch (err) {
+      console.error('실시간 로그 로드 실패:', err)
+    }
+  }
+
+  const handleShowRealtimeLogs = (jobId: string) => {
+    setSelectedJobId(jobId)
+    setShowRealtimeLogs(true)
+    setRealtimeLogs([])
+    loadRealtimeLogs()
   }
 
   const handleStartCollection = async () => {
@@ -352,8 +381,72 @@ export default function DataCollectionPage() {
                     <strong>오류:</strong> {job.error_message}
                   </div>
                 )}
+                <div style={{ marginTop: '12px' }}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleShowRealtimeLogs(job.collection_job_id)}
+                  >
+                    실시간 로그 보기
+                  </Button>
+                </div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {/* 실시간 로그 모니터링 */}
+      {showRealtimeLogs && selectedJobId && (
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>실시간 로그 모니터링</h2>
+            <Button variant="secondary" size="sm" onClick={() => {
+              setShowRealtimeLogs(false)
+              setSelectedJobId('')
+              setRealtimeLogs([])
+            }}>
+              닫기
+            </Button>
+          </div>
+          <div style={{
+            maxHeight: '400px',
+            overflowY: 'auto',
+            backgroundColor: '#1e1e1e',
+            color: '#d4d4d4',
+            padding: '16px',
+            borderRadius: '4px',
+            fontFamily: 'monospace',
+            fontSize: '12px'
+          }}>
+            {realtimeLogs.length === 0 ? (
+              <div style={{ color: '#888', textAlign: 'center', padding: '24px' }}>
+                로그를 기다리는 중...
+              </div>
+            ) : (
+              realtimeLogs.map((log, index) => (
+                <div key={log.id || index} style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #333' }}>
+                  <div style={{ color: '#4ec9b0', marginBottom: '4px' }}>
+                    [{new Date(log.created_at).toLocaleTimeString('ko-KR')}] {log.collection_type}
+                  </div>
+                  {log.log_message && (
+                    <div style={{ color: '#d4d4d4', marginLeft: '16px' }}>
+                      {log.log_message}
+                    </div>
+                  )}
+                  {log.error_message && (
+                    <div style={{ color: '#f48771', marginLeft: '16px' }}>
+                      오류: {log.error_message}
+                    </div>
+                  )}
+                  {log.status && (
+                    <div style={{ color: log.status === 'success' ? '#4ec9b0' : log.status === 'failed' ? '#f48771' : '#d4d4d4', marginLeft: '16px' }}>
+                      상태: {statusLabels[log.status] || log.status}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </Card>
       )}
@@ -393,6 +486,13 @@ export default function DataCollectionPage() {
                 key: 'created_at',
                 label: '생성일',
                 render: (log: CollectionLog) => new Date(log.created_at).toLocaleString('ko-KR'),
+              },
+              {
+                key: 'log_message',
+                label: '로그 메시지',
+                render: (log: CollectionLog) => log.log_message ? (
+                  <span style={{ fontSize: '12px' }}>{log.log_message.substring(0, 100)}</span>
+                ) : '-',
               },
               {
                 key: 'error_message',

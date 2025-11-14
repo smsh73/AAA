@@ -258,3 +258,48 @@ def start_collection_job_task(collection_job_id: str):
     finally:
         db.close()
 
+
+@celery_app.task(name="start_comprehensive_collection")
+def start_comprehensive_collection_task(collection_job_id: str):
+    """통합 자료수집 작업 실행"""
+    db = SessionLocal()
+    try:
+        from app.services.data_collection_service import DataCollectionService
+        
+        job = db.query(CollectionJob).filter(CollectionJob.id == UUID(collection_job_id)).first()
+        if not job:
+            return {"status": "failed", "error": "Job not found"}
+        
+        # 작업 상태를 running으로 변경
+        job.status = "running"
+        job.started_at = datetime.now()
+        db.commit()
+        
+        service = DataCollectionService(db)
+        
+        # 통합 수집 실행
+        result = run_async(service.start_comprehensive_collection(
+            analyst_id=job.analyst_id,
+            collection_types=job.collection_types,
+            start_date=job.start_date.date(),
+            end_date=job.end_date.date(),
+            collection_job_id=job.id
+        ))
+        
+        # 작업 완료
+        job.status = "completed"
+        job.completed_at = datetime.now()
+        job.overall_progress = "100.0"
+        db.commit()
+        
+        return {"status": "completed", "result": result}
+    except Exception as e:
+        job = db.query(CollectionJob).filter(CollectionJob.id == UUID(collection_job_id)).first()
+        if job:
+            job.status = "failed"
+            job.error_message = str(e)
+            db.commit()
+        raise
+    finally:
+        db.close()
+

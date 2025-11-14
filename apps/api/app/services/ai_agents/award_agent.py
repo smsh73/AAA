@@ -29,16 +29,52 @@ class AwardAgent:
         
         period = f"{year}-Q{quarter}" if quarter else str(year)
         
+        # 카테고리-섹터 매핑
+        category_sector_map = {
+            "AI": ["AI", "반도체", "IT", "소프트웨어"],
+            "2차전지": ["2차전지", "배터리", "전기차", "신에너지"],
+            "방산": ["방산", "국방", "항공우주"],
+            "IPO": ["IPO", "신규상장"]
+        }
+        
         winners = []
         runners_up = []
         
         for category in categories:
-            # 카테고리별 스코어카드 조회
-            scorecards = self.db.query(Scorecard).filter(
+            # 카테고리별 스코어카드 조회 (섹터 기반 필터링)
+            sectors = category_sector_map.get(category, [])
+            
+            from app.models.company import Company
+            from app.models.analyst import Analyst
+            from sqlalchemy import or_
+            
+            query = self.db.query(Scorecard).filter(
                 Scorecard.period.like(f"{period}%")
-            ).order_by(Scorecard.final_score.desc()).limit(10).all()
+            )
+            
+            # 섹터 필터링: Company 또는 Analyst의 sector가 카테고리와 매칭되는 경우
+            if sectors:
+                # Left join을 사용하여 company_id가 None인 경우도 처리
+                query = query.outerjoin(Company, Scorecard.company_id == Company.id).join(
+                    Analyst, Scorecard.analyst_id == Analyst.id
+                ).filter(
+                    or_(
+                        Company.sector.in_(sectors),
+                        Analyst.sector.in_(sectors)
+                    )
+                )
+            
+            scorecards = query.order_by(Scorecard.final_score.desc()).limit(10).all()
             
             if scorecards:
+                # 기존 Award 삭제 (중복 방지)
+                existing_awards = self.db.query(Award).filter(
+                    Award.award_category == category,
+                    Award.period == period
+                ).all()
+                for existing in existing_awards:
+                    self.db.delete(existing)
+                
                 # 1위 선정
                 winner = scorecards[0]
                 

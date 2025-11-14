@@ -45,6 +45,7 @@ class DataCollectionLogResponse(BaseModel):
     collected_data: Optional[Dict[str, Any]] = None
     status: str
     error_message: Optional[str] = None
+    log_message: Optional[str] = None  # 실시간 로그 메시지
     collection_time: Optional[float] = None
     token_usage: Optional[Dict[str, Any]] = None
     created_at: datetime

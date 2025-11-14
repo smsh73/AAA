@@ -8,6 +8,7 @@ from datetime import datetime
 
 class AwardResponse(BaseModel):
     id: UUID
+    scorecard_id: UUID
     analyst_id: UUID
     award_type: str
     award_category: str

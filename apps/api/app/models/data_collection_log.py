@@ -22,6 +22,7 @@ class DataCollectionLog(BaseModel):
     collected_data = Column(JSONB)
     status = Column(String(20), nullable=False, index=True)  # success, failed, partial
     error_message = Column(Text)
+    log_message = Column(Text)  # 실시간 로그 메시지
     collection_time = Column(Float)  # 소요 시간 (초)
     token_usage = Column(JSONB)
 

@@ -133,13 +133,15 @@ class EvaluationService:
         scores: list
     ) -> Decimal:
         """AI 정량 분석 점수 계산"""
-        # KPI별 가중 평균
+        # KPI별 가중 평균 (7개 KPI 모두 포함)
         weights = {
             "target_price_accuracy": Decimal("0.25"),
             "performance_accuracy": Decimal("0.30"),
             "investment_logic_validity": Decimal("0.15"),
             "risk_analysis_appropriateness": Decimal("0.10"),
             "report_frequency": Decimal("0.05"),
+            "sns_attention": Decimal("0.10"),
+            "media_frequency": Decimal("0.05"),
         }
         
         total_score = Decimal("0")
@@ -226,7 +228,15 @@ class EvaluationService:
         
         # SNS 주목도 (10%) + 언론 빈도 (5%) = 15%
         # 전체 30% 중 15%이므로 가중 평균
-        return (sns_score * Decimal("0.10") + media_score * Decimal("0.05")) / Decimal("0.15")
+        # 단, 전체 30%를 맞추기 위해 정규화
+        weighted_sum = sns_score * Decimal("0.10") + media_score * Decimal("0.05")
+        total_weight = Decimal("0.15")
+        
+        if total_weight > 0:
+            # 15%를 30%로 스케일링 (2배)
+            return (weighted_sum / total_weight) * Decimal("2.0")
+        else:
+            return Decimal("50.0")
 
     async def _calculate_expert_survey_score(
         self,
