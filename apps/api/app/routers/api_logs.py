@@ -4,6 +4,7 @@ API Logs router - 로그 관리
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from uuid import UUID
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -310,7 +311,7 @@ async def get_log_stats(
     
     # 평균 응답 시간
     avg_time = db.query(
-        db.func.avg(ApiLog.request_time)
+        func.avg(ApiLog.request_time)
     ).filter(
         ApiLog.request_time.isnot(None)
     ).scalar() or 0.0
@@ -318,20 +319,20 @@ async def get_log_stats(
     # 상태 코드별 통계
     status_stats = db.query(
         ApiLog.status_code,
-        db.func.count(ApiLog.id).label('count')
+        func.count(ApiLog.id).label('count')
     ).group_by(ApiLog.status_code).all()
     
     # 메서드별 통계
     method_stats = db.query(
         ApiLog.method,
-        db.func.count(ApiLog.id).label('count')
+        func.count(ApiLog.id).label('count')
     ).group_by(ApiLog.method).all()
     
     # 경로별 통계 (상위 10개)
     path_stats = db.query(
         ApiLog.path,
-        db.func.count(ApiLog.id).label('count')
-    ).group_by(ApiLog.path).order_by(db.func.count(ApiLog.id).desc()).limit(10).all()
+        func.count(ApiLog.id).label('count')
+    ).group_by(ApiLog.path).order_by(func.count(ApiLog.id).desc()).limit(10).all()
     
     return {
         "total": total,

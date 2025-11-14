@@ -375,40 +375,43 @@ class DataCollectionService:
   "reason": "판단 근거"
 }}
 """
-                    llm_response = await llm_service.generate("openai", prompt)
-                    content = llm_response.get("content", "")
-                    
-                    # JSON 파싱
-                    import json
-                    try:
-                        if "```json" in content:
-                            json_start = content.find("```json") + 7
-                            json_end = content.find("```", json_start)
-                            json_str = content[json_start:json_end].strip()
-                            judgment = json.loads(json_str)
-                        else:
-                            json_start = content.find("{")
-                            json_end = content.rfind("}") + 1
-                            judgment = json.loads(content[json_start:json_end])
+                        llm_response = await llm_service.generate("openai", prompt)
+                        content = llm_response.get("content", "")
                         
-                        if judgment.get("is_relevant", False):
-                            # 데이터 저장
-                            log = DataCollectionLog(
-                                analyst_id=analyst_id,
-                                collection_job_id=collection_job_id,
-                                collection_type="evaluation_kpi",
-                                collected_data={
-                                    "source": "google_search",
-                                    "title": result.get("title"),
-                                    "link": result.get("link"),
-                                    "judgment": judgment
-                                },
-                                status="success"
-                            )
-                            self.db.add(log)
-                            results["evaluation_data_collected"] += 1
+                        # JSON 파싱
+                        import json
+                        try:
+                            if "```json" in content:
+                                json_start = content.find("```json") + 7
+                                json_end = content.find("```", json_start)
+                                json_str = content[json_start:json_end].strip()
+                                judgment = json.loads(json_str)
+                            else:
+                                json_start = content.find("{")
+                                json_end = content.rfind("}") + 1
+                                judgment = json.loads(content[json_start:json_end])
+                            
+                            if judgment.get("is_relevant", False):
+                                # 데이터 저장
+                                log = DataCollectionLog(
+                                    analyst_id=analyst_id,
+                                    collection_job_id=collection_job_id,
+                                    collection_type="evaluation_kpi",
+                                    collected_data={
+                                        "source": "google_search",
+                                        "title": result.get("title"),
+                                        "link": result.get("link"),
+                                        "judgment": judgment
+                                    },
+                                    status="success"
+                                )
+                                self.db.add(log)
+                                results["evaluation_data_collected"] += 1
+                        except Exception as e:
+                            print(f"KPI 데이터 판단 오류: {str(e)}")
+                            continue
                     except Exception as e:
-                        print(f"KPI 데이터 판단 오류: {str(e)}")
+                        print(f"OpenAI 호출 오류: {str(e)}")
                         continue
 
             self.db.commit()
