@@ -338,11 +338,20 @@ class DataCollectionService:
                 securities_firm=analyst.firm
             )
 
-            # OpenAI로 검색 결과 적합성 판단
-            for result in google_results[:5]:  # 상위 5개만
-                try:
-                    # OpenAI로 적합성 판단
-                    prompt = f"""
+            # OpenAI로 검색 결과 적합성 판단 (API 키가 있을 때만)
+            if not llm_service.openai_api_key:
+                self._log_message(
+                    collection_job_id, analyst_id,
+                    "OpenAI API 키가 설정되지 않아 KPI 데이터 판단을 건너뜁니다.",
+                    "evaluation_kpi"
+                )
+                # API 키가 없어도 계속 진행
+                results["evaluation_data_collected"] = 0
+            else:
+                for result in google_results[:5]:  # 상위 5개만
+                    try:
+                        # OpenAI로 적합성 판단
+                        prompt = f"""
 다음 검색 결과가 애널리스트 평가에 적합한지 판단해주세요.
 
 검색 결과:
@@ -398,11 +407,9 @@ class DataCollectionService:
                             )
                             self.db.add(log)
                             results["evaluation_data_collected"] += 1
-                    except:
-                        pass
-                except Exception as e:
-                    print(f"KPI 데이터 판단 오류: {str(e)}")
-                    continue
+                    except Exception as e:
+                        print(f"KPI 데이터 판단 오류: {str(e)}")
+                        continue
 
             self.db.commit()
             self._log_message(

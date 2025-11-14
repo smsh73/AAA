@@ -13,11 +13,34 @@ class LLMService:
     """통합 LLM 서비스"""
 
     def __init__(self):
-        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-        self.gemini_model = genai.GenerativeModel('gemini-pro')
+        # API 키가 없을 때 None으로 설정 (사용 시점에 체크)
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        self.google_api_key = os.getenv("GOOGLE_API_KEY")
         self.perplexity_api_key = os.getenv("PERPLEXITY_API_KEY")
+        
+        # API 키가 있을 때만 클라이언트 초기화
+        self.openai_client = None
+        if self.openai_api_key:
+            try:
+                self.openai_client = OpenAI(api_key=self.openai_api_key)
+            except Exception as e:
+                print(f"OpenAI 클라이언트 초기화 실패: {str(e)}")
+        
+        self.anthropic_client = None
+        if self.anthropic_api_key:
+            try:
+                self.anthropic_client = anthropic.Anthropic(api_key=self.anthropic_api_key)
+            except Exception as e:
+                print(f"Anthropic 클라이언트 초기화 실패: {str(e)}")
+        
+        self.gemini_model = None
+        if self.google_api_key:
+            try:
+                genai.configure(api_key=self.google_api_key)
+                self.gemini_model = genai.GenerativeModel('gemini-pro')
+            except Exception as e:
+                print(f"Gemini 모델 초기화 실패: {str(e)}")
 
     async def generate(
         self,
@@ -41,6 +64,12 @@ class LLMService:
 
     async def _generate_openai(self, prompt: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """OpenAI 생성"""
+        if not self.openai_api_key or not self.openai_client:
+            raise ValueError(
+                "OPENAI_API_KEY 환경 변수가 설정되지 않았습니다. "
+                "환경 변수를 설정하거나 .env 파일에 OPENAI_API_KEY를 추가해주세요."
+            )
+        
         response = self.openai_client.chat.completions.create(
             model=options.get("model", "gpt-4"),
             messages=[{"role": "user", "content": prompt}],
@@ -60,6 +89,12 @@ class LLMService:
 
     async def _generate_claude(self, prompt: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """Claude 생성"""
+        if not self.anthropic_api_key or not self.anthropic_client:
+            raise ValueError(
+                "ANTHROPIC_API_KEY 환경 변수가 설정되지 않았습니다. "
+                "환경 변수를 설정하거나 .env 파일에 ANTHROPIC_API_KEY를 추가해주세요."
+            )
+        
         response = self.anthropic_client.messages.create(
             model=options.get("model", "claude-3-5-sonnet-20241022"),
             max_tokens=options.get("max_tokens", 4096),
@@ -82,6 +117,12 @@ class LLMService:
 
     async def _generate_gemini(self, prompt: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """Gemini 생성"""
+        if not self.google_api_key or not self.gemini_model:
+            raise ValueError(
+                "GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다. "
+                "환경 변수를 설정하거나 .env 파일에 GOOGLE_API_KEY를 추가해주세요."
+            )
+        
         generation_config = {
             "max_output_tokens": options.get("max_tokens", 4096),
             "temperature": options.get("temperature", 0.7),
@@ -99,6 +140,12 @@ class LLMService:
 
     async def _generate_perplexity(self, prompt: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """Perplexity 생성"""
+        if not self.perplexity_api_key:
+            raise ValueError(
+                "PERPLEXITY_API_KEY 환경 변수가 설정되지 않았습니다. "
+                "환경 변수를 설정하거나 .env 파일에 PERPLEXITY_API_KEY를 추가해주세요."
+            )
+        
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
                 "https://api.perplexity.ai/chat/completions",
@@ -125,6 +172,11 @@ class LLMService:
     async def embed(self, text: str, model: str = "openai") -> list:
         """텍스트 임베딩"""
         if model == "openai":
+            if not self.openai_api_key or not self.openai_client:
+                raise ValueError(
+                    "OPENAI_API_KEY 환경 변수가 설정되지 않았습니다. "
+                    "환경 변수를 설정하거나 .env 파일에 OPENAI_API_KEY를 추가해주세요."
+                )
             response = self.openai_client.embeddings.create(
                 model="text-embedding-3-large",
                 input=text,
