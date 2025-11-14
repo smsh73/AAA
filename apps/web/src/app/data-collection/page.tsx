@@ -496,7 +496,7 @@ export default function DataCollectionPage() {
                   </span>
                 </div>
                 <div style={{ marginBottom: '8px' }}>
-                  <strong>전체 진행률:</strong> {job.overall_progress.toFixed(1)}%
+                  <strong>전체 진행률:</strong> {typeof job.overall_progress === 'number' ? job.overall_progress.toFixed(1) : parseFloat(String(job.overall_progress || 0)).toFixed(1)}%
                 </div>
                 <div style={{ marginBottom: '8px' }}>
                   <strong>상세 진행률:</strong>

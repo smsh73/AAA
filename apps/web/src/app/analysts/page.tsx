@@ -204,6 +204,8 @@ interface Analyst {
   email?: string
   department?: string
   experience_years?: number
+  profile_url?: string
+  bio?: string
 }
 
 export default function AnalystsPage() {
@@ -344,27 +346,30 @@ export default function AnalystsPage() {
       </div>
 
       {(showCreateModal || editingAnalyst) && (
-        <Card style={{ marginBottom: '24px' }}>
-          <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>
-            {editingAnalyst ? '애널리스트 수정' : '애널리스트 추가'}
-          </h2>
-          <AnalystForm
-            analyst={editingAnalyst}
-            onSuccess={async () => {
-              setShowCreateModal(false)
-              setEditingAnalyst(null)
-              await loadAnalysts()
-            }}
-            onCancel={() => {
-              setShowCreateModal(false)
-              setEditingAnalyst(null)
-            }}
-          />
-        </Card>
+        <div style={{ marginBottom: '24px' }}>
+          <Card>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>
+              {editingAnalyst ? '애널리스트 수정' : '애널리스트 추가'}
+            </h2>
+            <AnalystForm
+              analyst={editingAnalyst}
+              onSuccess={async () => {
+                setShowCreateModal(false)
+                setEditingAnalyst(null)
+                await loadAnalysts()
+              }}
+              onCancel={() => {
+                setShowCreateModal(false)
+                setEditingAnalyst(null)
+              }}
+            />
+          </Card>
+        </div>
       )}
 
       {showUploadForm && (
-        <Card style={{ marginBottom: '24px' }}>
+        <div style={{ marginBottom: '24px' }}>
+          <Card>
           <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>Excel 파일 일괄 등록</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
@@ -407,7 +412,8 @@ export default function AnalystsPage() {
               </div>
             )}
           </div>
-        </Card>
+          </Card>
+        </div>
       )}
 
       <Card>

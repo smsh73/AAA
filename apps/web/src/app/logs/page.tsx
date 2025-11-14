@@ -410,7 +410,7 @@ export default function LogsPage() {
           }}
           onClick={() => setSelectedLog(null)}
         >
-          <Card
+          <div
             style={{
               maxWidth: '90%',
               maxHeight: '90%',
@@ -419,6 +419,7 @@ export default function LogsPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            <Card>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>로그 상세</h2>
               <Button variant="secondary" size="sm" onClick={() => setSelectedLog(null)}>
@@ -436,7 +437,8 @@ export default function LogsPage() {
             }}>
               {JSON.stringify(selectedLog, null, 2)}
             </pre>
-          </Card>
+            </Card>
+          </div>
         </div>
       )}
     </div>

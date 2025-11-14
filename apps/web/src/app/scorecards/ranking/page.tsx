@@ -43,8 +43,8 @@ export default function RankingPage() {
     { 
       key: 'ranking', 
       label: '순위',
-      render: (item: Ranking, index: number) => {
-        const rank = item.ranking || index + 1
+      render: (item: Ranking) => {
+        const rank = item.ranking || rankings.indexOf(item) + 1
         if (rank === 1) return '🥇 1위'
         if (rank === 2) return '🥈 2위'
         if (rank === 3) return '🥉 3위'
@@ -80,7 +80,8 @@ export default function RankingPage() {
         <p className="fnguide-page-subtitle">스코어카드 랭킹</p>
       </div>
 
-      <Card title="기간 필터" style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <Card title="기간 필터">
         <div className="fnguide-form-group" style={{ marginBottom: 0 }}>
           <label className="fnguide-form-label">기간 (예: 2025-Q1)</label>
           <input
@@ -92,7 +93,8 @@ export default function RankingPage() {
             style={{ maxWidth: '200px' }}
           />
         </div>
-      </Card>
+        </Card>
+      </div>
 
       <Card>
         <Table

@@ -66,7 +66,8 @@ export default function AwardsPage() {
         <p className="fnguide-page-subtitle">AI가 찾은 스타 애널리스트 어워즈 수상자</p>
       </div>
 
-      <Card title="연도별 필터" style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <Card title="연도별 필터">
         <div className="fnguide-form-group" style={{ marginBottom: 0 }}>
           <label className="fnguide-form-label">연도</label>
           <input
@@ -77,7 +78,8 @@ export default function AwardsPage() {
             style={{ maxWidth: '200px' }}
           />
         </div>
-      </Card>
+        </Card>
+      </div>
 
       <Card>
         <Table

@@ -193,11 +193,6 @@ export default function EvaluationsPage() {
                         <Link href={`/reports/${report.report_id}`} style={{ textDecoration: 'none', color: 'var(--fnguide-primary)' }}>
                           <strong>{report.report_title}</strong>
                         </Link>
-                        {report.publication_date && (
-                          <span style={{ marginLeft: '8px', color: 'var(--fnguide-gray-500)', fontSize: '14px' }}>
-                            ({new Date(report.publication_date).toLocaleDateString('ko-KR')})
-                          </span>
-                        )}
                       </div>
 
                       {report.evaluations.map((evaluation) => (

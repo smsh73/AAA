@@ -61,7 +61,7 @@ export default function CompanyDetailPage() {
       // 이 기업에 대한 리포트를 작성한 애널리스트 목록
       const res = await api.get(`/api/reports?company_id=${companyId}`)
       const reportData = res.data || []
-      const analystIds = [...new Set(reportData.map((r: any) => r.analyst_id))]
+      const analystIds = Array.from(new Set(reportData.map((r: any) => r.analyst_id))) as string[]
       
       if (analystIds.length > 0) {
         const analystPromises = analystIds.map((id: string) => 
@@ -140,7 +140,8 @@ export default function CompanyDetailPage() {
       </div>
 
       {analysts.length > 0 && (
-        <Card title="애널리스트 커버리지" style={{ marginTop: '24px' }}>
+        <div style={{ marginTop: '24px' }}>
+          <Card title="애널리스트 커버리지">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {analysts.map((analyst: any) => (
               <div key={analyst.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -155,11 +156,13 @@ export default function CompanyDetailPage() {
               </div>
             ))}
           </div>
-        </Card>
+          </Card>
+        </div>
       )}
 
       {reports.length > 0 && (
-        <Card title="리포트 목록" style={{ marginTop: '24px' }}>
+        <div style={{ marginTop: '24px' }}>
+          <Card title="리포트 목록">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {reports.map((report: any) => (
               <div key={report.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--fnguide-gray-200)', borderRadius: '4px' }}>
@@ -177,7 +180,8 @@ export default function CompanyDetailPage() {
               </div>
             ))}
           </div>
-        </Card>
+          </Card>
+        </div>
       )}
     </div>
   )
