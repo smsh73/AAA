@@ -2,7 +2,7 @@
 Reports router
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from uuid import UUID
 
@@ -73,12 +73,15 @@ async def get_report(
     report_id: UUID,
     db: Session = Depends(get_db)
 ):
-    """리포트 상세 조회"""
+    """리포트 상세 조회 (N+1 쿼리 최적화)"""
     from app.models.prediction import Prediction
-    from app.models.company import Company
+    from app.models.report import Report
     
-    service = ReportService(db)
-    report = service.get_report(report_id)
+    # Eager loading으로 company 관계를 한 번에 로드
+    report = db.query(Report).options(
+        joinedload(Report.company)
+    ).filter(Report.id == report_id).first()
+    
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     
@@ -98,14 +101,11 @@ async def get_report(
         "updated_at": report.updated_at,
     }
     
-    # 추출된 기업명
-    if report.company_id:
-        company = db.query(Company).filter(Company.id == report.company_id).first()
-        report_dict["extracted_company_name"] = company.name_kr if company else None
-    else:
-        report_dict["extracted_company_name"] = None
+    # 이미 로드된 company 관계 사용 (추가 쿼리 없음)
+    company = report.company if hasattr(report, 'company') else None
+    report_dict["extracted_company_name"] = company.name_kr if company else None
     
-    # 추출된 예측 정보 개수
+    # 추출된 예측 정보 개수 (count 쿼리는 빠름)
     predictions_count = db.query(Prediction).filter(Prediction.report_id == report_id).count()
     report_dict["predictions_count"] = predictions_count
     

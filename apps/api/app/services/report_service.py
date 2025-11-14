@@ -2,7 +2,7 @@
 Report service
 """
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta
 import os
@@ -273,12 +273,14 @@ class ReportService:
         period: Optional[str] = None,
         analyst_id: Optional[UUID] = None
     ) -> Dict[str, Any]:
-        """기간별 그룹화된 리포트 조회 (기간>애널리스트>리포트)"""
-        from app.models.analyst import Analyst
-        from datetime import datetime
+        """기간별 그룹화된 리포트 조회 (N+1 쿼리 최적화)"""
+        from sqlalchemy.orm import joinedload
+        from datetime import datetime, date
         
-        # 리포트 조회
-        query = self.db.query(Report)
+        # Eager loading으로 analyst 관계를 한 번에 로드
+        query = self.db.query(Report).options(
+            joinedload(Report.analyst)
+        )
         if analyst_id:
             query = query.filter(Report.analyst_id == analyst_id)
         
@@ -309,11 +311,12 @@ class ReportService:
                     "analysts": {}
                 }
             
-            # 애널리스트별 그룹화
+            # 애널리스트별 그룹화 (이미 로드된 analyst 사용)
             if report.analyst_id:
                 analyst_id_str = str(report.analyst_id)
                 if analyst_id_str not in periods[period_key]["analysts"]:
-                    analyst = self.db.query(Analyst).filter(Analyst.id == report.analyst_id).first()
+                    # 이미 로드된 analyst 관계 사용 (추가 쿼리 없음)
+                    analyst = report.analyst if hasattr(report, 'analyst') else None
                     periods[period_key]["analysts"][analyst_id_str] = {
                         "analyst_id": analyst_id_str,
                         "analyst_name": analyst.name if analyst else "Unknown",

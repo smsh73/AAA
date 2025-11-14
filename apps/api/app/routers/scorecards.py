@@ -2,7 +2,7 @@
 Scorecards router
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from uuid import UUID
 
@@ -36,44 +36,42 @@ async def get_scorecard(
     scorecard_id: UUID,
     db: Session = Depends(get_db)
 ):
-    """스코어카드 상세 조회 (기간 > 애널리스트 > 리포트 > 평가 데이터 포함)"""
-    service = ScorecardService(db)
-    scorecard = service.get_scorecard(scorecard_id)
+    """스코어카드 상세 조회 (N+1 쿼리 최적화)"""
+    from app.models.scorecard import Scorecard
+    from app.models.evaluation import Evaluation
+    from app.models.evaluation_score import EvaluationScore
+    
+    # Scorecard를 먼저 조회
+    scorecard = db.query(Scorecard).filter(Scorecard.id == scorecard_id).first()
     if not scorecard:
         raise HTTPException(status_code=404, detail="Scorecard not found")
     
-    # 관련 데이터 조회
-    from app.models.analyst import Analyst
-    from app.models.company import Company
-    from app.models.evaluation import Evaluation
-    from app.models.report import Report
-    from app.models.evaluation_score import EvaluationScore
-    
-    # 애널리스트 정보
-    analyst = db.query(Analyst).filter(Analyst.id == scorecard.analyst_id).first()
-    
-    # 기업 정보
-    company = None
-    if scorecard.company_id:
-        company = db.query(Company).filter(Company.id == scorecard.company_id).first()
-    
-    # 평가 정보 (스코어카드의 evaluation_id 사용)
+    # 평가 정보를 한 번에 조회 (evaluation_id가 있는 경우)
     evaluation = None
     evaluation_scores = []
     if scorecard.scorecard_data and "evaluation_id" in scorecard.scorecard_data:
         evaluation_id = scorecard.scorecard_data["evaluation_id"]
-        evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+        # Eager loading으로 evaluation과 관련 데이터를 한 번에 로드
+        evaluation = db.query(Evaluation).options(
+            joinedload(Evaluation.analyst),
+            joinedload(Evaluation.company),
+            joinedload(Evaluation.report),
+            joinedload(Evaluation.scores)
+        ).filter(Evaluation.id == evaluation_id).first()
+        
         if evaluation:
-            evaluation_scores = db.query(EvaluationScore).filter(
-                EvaluationScore.evaluation_id == evaluation.id
-            ).all()
+            # 이미 로드된 scores 사용
+            evaluation_scores = evaluation.scores if hasattr(evaluation, 'scores') else []
+    
+    # 이미 로드된 관계 사용
+    analyst = evaluation.analyst if evaluation and hasattr(evaluation, 'analyst') else None
+    company = evaluation.company if evaluation and hasattr(evaluation, 'company') else None
+    report = evaluation.report if evaluation and hasattr(evaluation, 'report') else None
     
     # 리포트 정보
     reports = []
-    if evaluation and evaluation.report_id:
-        report = db.query(Report).filter(Report.id == evaluation.report_id).first()
-        if report:
-            reports.append(report)
+    if report:
+        reports.append(report)
     
     # 상세 응답 생성
     detail_response = ScorecardDetailResponse.model_validate(scorecard)

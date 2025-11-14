@@ -2,7 +2,7 @@
 Dashboard router
 """
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime, timedelta
 
@@ -18,6 +18,7 @@ from app.models.report import Report
 from app.models.evaluation import Evaluation
 from app.models.award import Award
 from app.models.analyst import Analyst
+from app.models.company import Company
 
 router = APIRouter()
 
@@ -56,20 +57,20 @@ async def get_recent_evaluations(
     limit: int = 10,
     db: Session = Depends(get_db)
 ):
-    """최근 평가 조회"""
-    from app.models.analyst import Analyst
-    from app.models.company import Company
-    
-    evaluations = db.query(Evaluation).order_by(
+    """최근 평가 조회 (N+1 쿼리 최적화)"""
+    # Eager loading으로 N+1 쿼리 문제 해결
+    evaluations = db.query(Evaluation).options(
+        joinedload(Evaluation.analyst),
+        joinedload(Evaluation.company)
+    ).order_by(
         Evaluation.created_at.desc()
     ).limit(limit).all()
     
     items = []
     for eval in evaluations:
-        analyst = db.query(Analyst).filter(Analyst.id == eval.analyst_id).first()
-        company = None
-        if eval.company_id:
-            company = db.query(Company).filter(Company.id == eval.company_id).first()
+        # 이미 로드된 관계 사용 (추가 쿼리 없음)
+        analyst = eval.analyst if hasattr(eval, 'analyst') else None
+        company = eval.company if hasattr(eval, 'company') else None
         
         items.append(RecentEvaluationItem(
             id=str(eval.id),
