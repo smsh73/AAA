@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
 
+from app.middleware.api_logging_middleware import ApiLoggingMiddleware
+
 from app.routers import (
     analysts,
     reports,
@@ -19,6 +21,7 @@ from app.routers import (
     agents,
     health,
     dashboard,
+    api_logs,
 )
 
 app = FastAPI(
@@ -36,6 +39,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# API 로깅 미들웨어 (CORS 이후에 추가)
+app.add_middleware(ApiLoggingMiddleware)
+
 # 라우터 등록
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
@@ -49,6 +55,7 @@ app.include_router(awards.router, prefix="/api/awards", tags=["Awards"])
 app.include_router(data_collection.router, prefix="/api/data-collection", tags=["Data Collection"])
 app.include_router(evaluation_reports.router, prefix="/api/evaluation-reports", tags=["Evaluation Reports"])
 app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
+app.include_router(api_logs.router, prefix="/api", tags=["API Logs"])
 
 
 @app.exception_handler(Exception)
@@ -58,6 +65,12 @@ async def global_exception_handler(request, exc):
         status_code=500,
         content={"detail": f"Internal server error: {str(exc)}"}
     )
+
+
+# 애플리케이션 시작 시 자동 마이그레이션 (환경 변수로 제어)
+if os.getenv("AUTO_MIGRATE", "false").lower() == "true":
+    from app.database import run_migrations
+    run_migrations()
 
 
 if __name__ == "__main__":

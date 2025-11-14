@@ -15,6 +15,7 @@ from .data_collection_log import DataCollectionLog
 from .collection_job import CollectionJob
 from .evaluation_report import EvaluationReport
 from .prompt_template import PromptTemplate
+from .api_log import ApiLog
 
 __all__ = [
     "Analyst",
@@ -36,5 +37,6 @@ __all__ = [
     "CollectionJob",
     "EvaluationReport",
     "PromptTemplate",
+    "ApiLog",
 ]
 

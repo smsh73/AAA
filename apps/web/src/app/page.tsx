@@ -12,6 +12,7 @@ export default function Home() {
     { href: '/scorecards', title: '스코어카드', description: '스코어카드 조회 및 랭킹' },
     { href: '/awards', title: '어워즈', description: '어워즈 선정 및 조회' },
     { href: '/data-collection', title: '데이터 수집', description: '데이터 수집 관리' },
+    { href: '/logs', title: '로그 관리자', description: 'API 로그 조회 및 다운로드' },
   ]
 
   return (
